@@ -22,6 +22,7 @@ export default function App() {
   const [status, setStatus] = useState('Initializing...');
   const [showManual, setShowManual] = useState(true);
   const readyRef = useRef(false);
+  const frameLoadedRef = useRef(false);
   const timerRef = useRef(null);
   const sourceLabelRef = useRef('');
 
@@ -29,10 +30,11 @@ export default function App() {
 
   const armHealthCheck = (url) => {
     readyRef.current = false;
+    frameLoadedRef.current = false;
     if (timerRef.current) window.clearTimeout(timerRef.current);
     timerRef.current = window.setTimeout(() => {
-      if (readyRef.current) return;
-      setStatus('Embed did not initialize. Check GAS deploy access and ALLOWALL.');
+      if (readyRef.current || frameLoadedRef.current) return;
+      setStatus('Embed did not load. Check GAS URL/public access settings.');
     }, 8000);
     setStatus('Loading embedded app...');
     setFrameUrl(url);
@@ -114,7 +116,9 @@ export default function App() {
           title="GAS App"
           src={frameUrl}
           onLoad={() => {
-            if (!readyRef.current) setStatus('Frame loaded. Waiting app initialization...');
+            frameLoadedRef.current = true;
+            if (timerRef.current) window.clearTimeout(timerRef.current);
+            if (!readyRef.current) setStatus('Embedded frame loaded.');
           }}
         />
       </main>

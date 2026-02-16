@@ -57,6 +57,15 @@
       font-size: 12px;
       color: var(--muted);
     }
+    .link {
+      color: var(--accent);
+      text-decoration: underline;
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 0;
+      font: inherit;
+    }
     main { padding: 0; }
     iframe {
       display: block;
@@ -87,6 +96,36 @@
     const frame = document.getElementById('app-frame');
     const btn = document.getElementById('load-btn');
     const statusNote = document.getElementById('status-note');
+    let activeUrl = '';
+    let readyAck = false;
+    let failTimer = null;
+
+    function setStatus(msg) {
+      statusNote.textContent = msg;
+    }
+
+    function setStatusWithOpenLink(msg, url) {
+      statusNote.innerHTML = '';
+      statusNote.append(document.createTextNode(msg + ' '));
+      const b = document.createElement('button');
+      b.className = 'link';
+      b.type = 'button';
+      b.textContent = 'Open directly';
+      b.onclick = () => window.open(url, '_blank', 'noopener');
+      statusNote.appendChild(b);
+    }
+
+    function armEmbedHealthCheck(url) {
+      readyAck = false;
+      if (failTimer) clearTimeout(failTimer);
+      failTimer = setTimeout(() => {
+        if (readyAck) return;
+        setStatusWithOpenLink(
+          'Embed did not initialize. Check GAS deploy access (Anyone with the link) and ALLOWALL.',
+          url
+        );
+      }, 8000);
+    }
 
     async function getEnvGasUrl() {
       try {
@@ -103,8 +142,10 @@
       const url = input.value.trim();
       if (!url) return;
       localStorage.setItem('gas_embed_url', url);
+      activeUrl = url;
       frame.src = url;
-      statusNote.textContent = 'Loaded.';
+      setStatus('Loading embedded app...');
+      armEmbedHealthCheck(url);
     }
 
     async function init() {
@@ -126,15 +167,28 @@
       }
 
       input.value = initialUrl;
+      activeUrl = initialUrl;
       frame.src = initialUrl;
-      statusNote.textContent = queryUrl
+      setStatus(queryUrl
         ? 'Loaded from query parameter.'
-        : (envUrl ? 'Loaded from Vercel env GAS_WEBAPP_URL.' : 'Loaded from local storage.');
+        : (envUrl ? 'Loaded from Vercel env GAS_WEBAPP_URL.' : 'Loaded from local storage.'));
+      armEmbedHealthCheck(initialUrl);
     }
 
     btn.addEventListener('click', loadFrame);
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') loadFrame();
+    });
+    window.addEventListener('message', (ev) => {
+      const d = ev.data || {};
+      if (d.type !== 'gas-app-ready') return;
+      readyAck = true;
+      if (failTimer) clearTimeout(failTimer);
+      setStatus('Embedded app is ready.');
+    });
+    frame.addEventListener('load', () => {
+      if (!activeUrl) return;
+      if (!readyAck) setStatus('Frame loaded. Waiting app initialization...');
     });
     init();
   </script>

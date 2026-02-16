@@ -134,6 +134,17 @@
       const msg = (err && err.message) ? err.message : "処理に失敗しました";
       toast(msg);
     }
+
+    function notifyEmbedReady() {
+      try {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ type: "gas-app-ready" }, "*");
+        }
+      } catch (e) {}
+    }
+
+    window.addEventListener("load", notifyEmbedReady);
+    setTimeout(notifyEmbedReady, 1200);
   </script>
 </body>
 </html>

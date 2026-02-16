@@ -1,0 +1,189 @@
+﻿<div id="recipe-list-area">
+  <button class="btn-back" onclick="showPage('pg-set')">← 設定に戻る</button>
+  <div class="section-title">レシピ一覧</div>
+  <div class="section-body">
+    <div id="recipe-list-container"></div>
+  </div>
+  <button class="fab" onclick="openRecipeEditor()">＋</button>
+</div>
+
+<div id="recipe-editor-area" style="display:none;">
+  <button class="btn-back" onclick="backToRecipeList()">← 一覧に戻る</button>
+  <div class="section-title">レシピ編集</div>
+  <div class="section-body">
+    <div class="card">
+      <label style="margin-top:0;">商品名</label>
+      <input type="text" id="r-pname" list="recipe-product-candidates" placeholder="例: アイスココア">
+      <datalist id="recipe-product-candidates"></datalist>
+      <label>商品番号</label>
+      <input type="text" id="r-pnum" placeholder="CSVの商品番号">
+
+      <div style="margin-top:25px; margin-bottom:15px; border-bottom: 2px solid #f0f0f0; padding-bottom:10px;">
+        <button class="btn-action" style="width:100%; padding:12px; font-size:13px; background:var(--light-blue);" onclick="addRecipeRow()">＋ 材料・物品を追加</button>
+      </div>
+
+      <div id="r-rows-container"></div>
+
+      <button class="btn-main" style="margin-top: 30px;" onclick="saveRecipeQuick()">保存</button>
+    </div>
+  </div>
+</div>
+<script>
+let recipeMasterData = [];
+let recipeMap = {};
+
+function refreshRecipe() {
+  load(true);
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(d => {
+    load(false);
+    recipeMasterData = d.masterAll;
+    recipeMap = {};
+    (d.recipes || []).forEach(r => { recipeMap[r.name] = r; });
+    renderRecipeList(d.recipes || []);
+  }).getInitialData();
+}
+
+function renderRecipeList(recipes) {
+  const container = document.getElementById('recipe-list-container');
+  if(recipes.length === 0) {
+    container.innerHTML = '<p style="text-align:center; font-size:12px; font-weight:bold; color:#ccc;">登録されたレシピはありません</p>';
+    return;
+  }
+  container.innerHTML = recipes.map(r => `
+    <div class="card alert-card" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 15px;">
+      <div class="alert-card-inner" style="flex: 1;">
+        <div style="font-weight: 800; font-size: 15px; color: #444;">${r.name}</div>
+        <div style="font-size: 11px; color: #888; margin-top: 4px; font-weight: 800;">${r.num || ''}</div>
+      </div>
+      <div style="display: flex; gap: 6px; width: 110px;">
+        <button class="btn-action" style="flex: 1; padding: 8px 0;" onclick="openRecipeEditor('${r.name}')">📝 編集</button>
+        <button class="btn-action btn-danger-outline" style="flex: 1; padding: 8px 0;" onclick="confirmDeleteRecipe('${r.name}')">🗑️ 削除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openRecipeEditor(name="") {
+  document.getElementById('recipe-list-area').style.display = 'none';
+  document.getElementById('recipe-editor-area').style.display = 'block';
+  window.scrollTo(0, 0);
+
+  renderRecipeProductCandidates();
+  document.getElementById('r-rows-container').innerHTML = '';
+
+  if(name) {
+    const recipe = recipeMap[name] || { name: name, num: '', items: [] };
+    document.getElementById('r-pname').value = recipe.name || '';
+    document.getElementById('r-pnum').value = recipe.num || '';
+    if ((recipe.items || []).length > 0) {
+      recipe.items.forEach(it => addRecipeRow(it));
+    } else {
+      addRecipeRow();
+    }
+  } else {
+    document.getElementById('r-pname').value = '';
+    document.getElementById('r-pnum').value = '';
+    addRecipeRow();
+  }
+}
+
+function renderRecipeProductCandidates() {
+  const existingProducts = Object.keys(recipeMap || {});
+  const options = existingProducts.map(n => `<option value="${n}"></option>`).join('');
+  document.getElementById('recipe-product-candidates').innerHTML = options;
+}
+
+function backToRecipeList() {
+  document.getElementById('recipe-editor-area').style.display = 'none';
+  document.getElementById('recipe-list-area').style.display = 'block';
+}
+
+function addRecipeRow(prefill = null) {
+  const container = document.getElementById('r-rows-container');
+  const count = container.children.length + 1;
+  const div = document.createElement('div');
+  div.className = 'recipe-row';
+  div.style = 'display:flex; align-items:center; gap:8px; margin-bottom:10px;';
+
+  let options = '<option value="" data-unit="--">-- 選択 --</option>';
+  recipeMasterData.forEach(m => {
+    const selected = prefill && prefill.name === m.name ? 'selected' : '';
+    options += `<option value="${m.name}" data-unit="${m.unit}" ${selected}>${m.name}</option>`;
+  });
+
+  const qty = prefill ? prefill.qty : '';
+  const unit = prefill ? (prefill.unit || '--') : '--';
+
+  div.innerHTML = `
+    <span style="font-size:12px; font-weight:800; color:#ccc;">${count}.</span>
+    <select class="r-sel" style="flex:2; margin:0; padding:10px;" onchange="this.nextElementSibling.nextElementSibling.innerText = this.options[this.selectedIndex].dataset.unit;">${options}</select>
+    <input type="number" class="r-qty" value="${qty}" style="flex:1; margin:0; padding:10px; text-align:center;">
+    <span class="r-unit-disp" style="font-size:12px; font-weight:800; color:#888; width:20px;">${unit}</span>
+    <button style="background:none; border:none; font-size:18px; color:#ccc; font-weight:800; padding:0 5px;" onclick="this.parentElement.remove(); renumberRecipeRows();">×</button>
+  `;
+  container.appendChild(div);
+}
+
+function renumberRecipeRows() {
+  const rows = document.querySelectorAll('#r-rows-container .recipe-row');
+  rows.forEach((row, idx) => {
+    row.querySelector('span').innerText = `${idx + 1}.`;
+  });
+}
+
+function saveRecipeQuick() {
+  const name = document.getElementById('r-pname').value;
+  const pnum = document.getElementById('r-pnum').value;
+  const rows = document.querySelectorAll('.recipe-row');
+
+  if(!name) { alert('商品名を入力してください'); return; }
+  if(!pnum) { alert('商品番号を入力してください'); return; }
+
+  let itemsToSave = [];
+
+  rows.forEach((row, i) => {
+    const sel = row.querySelector('.r-sel');
+    const qty = row.querySelector('.r-qty').value;
+    const unit = row.querySelector('.r-unit-disp').innerText;
+    if(sel.value && qty) {
+      itemsToSave.push({ name: sel.value, qty: qty, unit: unit });
+    }
+  });
+
+  if(itemsToSave.length === 0) { alert('材料を登録してください'); return; }
+  load(true);
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(() => {
+    load(false);
+    toast('レシピを保存しました');
+    backToRecipeList();
+    refreshRecipe();
+  }).saveRecipeFromUI({ productName: name, productNum: pnum, items: itemsToSave });
+}
+
+function confirmDeleteRecipe(name) {
+  const html = `
+    <div style="font-weight:800; text-align:center; margin-bottom:20px; color:var(--red-text); font-size:18px;">削除確認</div>
+    <div style="background:#fff5f5; padding:18px; border-radius:16px; font-size:14px; color:#444; border: 1px solid var(--red); text-align:center; line-height:1.6;">
+      <b style="color:var(--red-text); font-size:16px;">${name}</b> を削除しますか？
+    </div>
+    <div style="margin-top:20px;">
+      <button class="btn-main btn-danger" onclick="deleteRecipeExec('${name}')">完全に削除</button>
+      <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+    </div>
+  `;
+  openModal(html);
+}
+
+function deleteRecipeExec(name) {
+  closeModal();
+  load(true);
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(() => {
+    load(false);
+    toast('削除しました');
+    refreshRecipe();
+  }).deleteMasterGAS(name, '☕｜商品一覧');
+}
+</script>
+
+
+

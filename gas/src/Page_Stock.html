@@ -1,0 +1,353 @@
+﻿<div class="section-title">在庫操作</div>
+<div class="section-body">
+  <div class="card" style="padding:10px; display:flex; gap:8px;">
+    <button id="stock-tab-stock" class="btn-action" style="flex:1;" onclick="setStockTab('stock')">在庫</button>
+    <button id="stock-tab-in" class="btn-action" style="flex:1;" onclick="setStockTab('in')">入庫</button>
+    <button id="stock-tab-out" class="btn-action" style="flex:1;" onclick="setStockTab('out')">出庫</button>
+  </div>
+
+  <div id="stock-panel-stock">
+    <div class="sticky-note">材料</div>
+    <div id="stock-list-materials"></div>
+    <div class="sticky-note" style="margin-top:10px;">物品</div>
+    <div id="stock-list-items"></div>
+  </div>
+
+  <div id="stock-panel-in" style="display:none;">
+    <div class="card">
+      <label style="margin-top:0;">レシート/領収書画像</label>
+      <input type="file" id="stock-in-receipt" accept="image/*" onchange="quickInAnalyzeReceipt(this)">
+    </div>
+
+    <div class="card">
+      <div style="font-size:12px; color:#666; font-weight:800;">よく使う商品</div>
+      <div id="fav-in" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;"></div>
+      <label>アイテム</label>
+      <select id="stock-in-name" onchange="syncInUnit()"></select>
+      <label>数量</label>
+      <input type="number" id="stock-in-qty" value="">
+      <div style="display:flex; gap:6px; margin-top:6px;">
+        <button class="btn-action" onclick="addQty('stock-in-qty',1)">+1</button>
+        <button class="btn-action" onclick="addQty('stock-in-qty',5)">+5</button>
+        <button class="btn-action" onclick="addQty('stock-in-qty',10)">+10</button>
+      </div>
+      <label>入力単位</label>
+      <select id="stock-in-unit" onchange="updateInConvHint()"></select>
+      <div id="stock-in-conv-hint" style="margin-top:6px; font-size:12px; color:#666;"></div>
+      <button class="btn-main" style="margin-top:10px;" onclick="quickInflow()">入庫を登録</button>
+    </div>
+  </div>
+
+  <div id="stock-panel-out" style="display:none;">
+    <div class="card">
+      <div style="font-size:12px; color:#666; font-weight:800;">よく使う商品</div>
+      <div id="fav-out" style="display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;"></div>
+      <label>アイテム</label>
+      <select id="stock-out-name" onchange="syncOutUnit()"></select>
+      <label>数量</label>
+      <input type="number" id="stock-out-qty" value="">
+      <div style="display:flex; gap:6px; margin-top:6px;">
+        <button class="btn-action" onclick="addQty('stock-out-qty',1)">+1</button>
+        <button class="btn-action" onclick="addQty('stock-out-qty',5)">+5</button>
+        <button class="btn-action" onclick="addQty('stock-out-qty',10)">+10</button>
+      </div>
+      <label>入力単位</label>
+      <select id="stock-out-unit" onchange="updateOutConvHint()"></select>
+      <div id="stock-out-conv-hint" style="margin-top:6px; font-size:12px; color:#666;"></div>
+      <button class="btn-main btn-danger" style="margin-top:10px;" onclick="quickWaste()">出庫/廃棄を登録</button>
+    </div>
+
+    <div class="card">
+      <label style="margin-top:0;">Square 売上CSV</label>
+      <input type="file" id="stock-out-csv" accept=".csv" onchange="quickCsvOut(this)">
+    </div>
+  </div>
+</div>
+
+<script>
+let stockData = { materials: [], items: [], masterAll: [] };
+let stockTabMode = 'stock';
+
+function setStockTab(mode) {
+  stockTabMode = mode;
+  ['stock', 'in', 'out'].forEach(m => {
+    document.getElementById('stock-panel-' + m).style.display = (m === mode) ? 'block' : 'none';
+    const b = document.getElementById('stock-tab-' + m);
+    b.style.background = (m === mode) ? 'var(--main-blue)' : 'var(--light-blue)';
+    b.style.color = (m === mode) ? '#fff' : 'var(--main-blue)';
+  });
+}
+
+function refreshStock() {
+  load(true);
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(data => {
+    load(false);
+    stockData = data || { materials: [], items: [], masterAll: [] };
+    window.__stockMaster = (stockData.materials || []).concat(stockData.items || []);
+    renderStockList();
+    renderQuickSelectors();
+    renderFavorites();
+    setStockTab(stockTabMode || 'stock');
+  }).getInitialData();
+}
+
+function renderStockList() {
+  const render = (list, cat) => (list || []).map(r => `
+    <div class="card alert-card" style="display:flex; align-items:center; gap:10px;">
+      <div class="alert-card-inner" style="flex:2;">
+        <div style="font-weight:800; font-size:16px; color:#444; margin-bottom:6px;">${r.name}</div>
+        <div style="font-size:20px; color:var(--main-blue); font-weight:700; line-height:1;">
+          <span style="font-size:12px; color:#777; font-weight:700;">現在</span>${r.currentQty} <span style="font-size:12px; color:#777;">${r.unit}</span>
+        </div>
+      </div>
+      <div style="flex:1; display:flex; justify-content:flex-end;">
+        <button class="btn-action" onclick="quickAdjustPrompt('${r.name}', '${cat}', '${r.unit}', ${r.currentQty})">調整</button>
+      </div>
+    </div>
+  `).join('');
+  document.getElementById('stock-list-materials').innerHTML = render(stockData.materials, '材料');
+  document.getElementById('stock-list-items').innerHTML = render(stockData.items, '物品');
+}
+
+function renderQuickSelectors() {
+  const all = stockData.masterAll || [];
+  const opts = all.map(x => `<option value="${x.name}">${x.name}</option>`).join('');
+  document.getElementById('stock-in-name').innerHTML = opts;
+  document.getElementById('stock-out-name').innerHTML = opts;
+  syncInUnit();
+  syncOutUnit();
+}
+
+function syncInUnit() {
+  const name = document.getElementById('stock-in-name').value;
+  const m = (stockData.masterAll || []).find(x => x.name === name);
+  const units = (m && m.unitOptions && m.unitOptions.length) ? m.unitOptions : (m ? [m.unit] : []);
+  document.getElementById('stock-in-unit').innerHTML = units.map(u => `<option value="${u}">${u}</option>`).join('');
+  updateInConvHint();
+}
+
+function syncOutUnit() {
+  const name = document.getElementById('stock-out-name').value;
+  const m = (stockData.masterAll || []).find(x => x.name === name);
+  const units = (m && m.unitOptions && m.unitOptions.length) ? m.unitOptions : (m ? [m.unit] : []);
+  document.getElementById('stock-out-unit').innerHTML = units.map(u => `<option value="${u}">${u}</option>`).join('');
+  updateOutConvHint();
+}
+
+function buildConvHint(name, selectedUnit) {
+  const m = (stockData.masterAll || []).find(x => x.name === name);
+  if (!m) return '';
+  const convs = Array.isArray(m.unitConversions) ? m.unitConversions : [];
+  const baseUnit = m.unit || '';
+  if (convs.length === 0 || !baseUnit) return '';
+
+  const selected = convs.find(c => c.unit === selectedUnit);
+  if (selected && Number(selected.factor) > 0) {
+    if (selected.unit === baseUnit && Number(selected.factor) === 1) {
+      return `この商品は ${baseUnit} を基準に管理します`;
+    }
+    return `この商品は 1${selected.unit} = ${selected.factor}${baseUnit} で換算します`;
+  }
+
+  const sample = convs.find(c => c.unit !== baseUnit && Number(c.factor) > 0);
+  if (sample) {
+    return `この商品は 1${sample.unit} = ${sample.factor}${baseUnit} で換算します`;
+  }
+  return `この商品は ${baseUnit} を基準に管理します`;
+}
+
+function updateInConvHint() {
+  const name = document.getElementById('stock-in-name').value;
+  const unit = document.getElementById('stock-in-unit').value;
+  document.getElementById('stock-in-conv-hint').innerText = buildConvHint(name, unit);
+}
+
+function updateOutConvHint() {
+  const name = document.getElementById('stock-out-name').value;
+  const unit = document.getElementById('stock-out-unit').value;
+  document.getElementById('stock-out-conv-hint').innerText = buildConvHint(name, unit);
+}
+
+function addQty(id, delta) {
+  const el = document.getElementById(id);
+  const cur = Number(el.value || 0);
+  el.value = cur + delta;
+}
+
+function getFavMap() {
+  try { return JSON.parse(localStorage.getItem('zaiko_favs') || '{}'); } catch(e) { return {}; }
+}
+
+function saveFavMap(map) {
+  localStorage.setItem('zaiko_favs', JSON.stringify(map));
+}
+
+function bumpFav(name) {
+  const map = getFavMap();
+  map[name] = (map[name] || 0) + 1;
+  saveFavMap(map);
+}
+
+function renderFavorites() {
+  const map = getFavMap();
+  const top = Object.keys(map).sort((a,b) => map[b] - map[a]).slice(0, 6);
+  const makeBtns = (targetSelId, targetWrapId) => {
+    document.getElementById(targetWrapId).innerHTML = top.map(n => `<button class="btn-action" onclick="selectFav('${targetSelId}','${n}')">${n}</button>`).join('');
+  };
+  makeBtns('stock-in-name', 'fav-in');
+  makeBtns('stock-out-name', 'fav-out');
+}
+
+function selectFav(selId, name) {
+  const sel = document.getElementById(selId);
+  if (!sel) return;
+  sel.value = name;
+  if (selId === 'stock-in-name') syncInUnit();
+  if (selId === 'stock-out-name') syncOutUnit();
+}
+
+function quickInflow() {
+  const name = document.getElementById('stock-in-name').value;
+  const qty = Number(document.getElementById('stock-in-qty').value || 0);
+  const inputUnit = document.getElementById('stock-in-unit').value;
+  if (!name || qty <= 0) return;
+
+  load(true);
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+    load(false);
+    toast(res, () => undoInflow(name, qty, inputUnit));
+    document.getElementById('stock-in-qty').value = '';
+    bumpFav(name);
+    renderFavorites();
+    refreshStock();
+  }).processInflowFromUI({ name: name, qty: qty, inputUnit: inputUnit, memo: 'クイック入庫', isSet: false });
+}
+
+function undoInflow(name, qty, inputUnit) {
+  const m = (stockData.masterAll || []).find(x => x.name === name);
+  if (!m) return;
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+    toast('元に戻しました');
+    refreshStock();
+  }).processInventoryAdjustment(name, qty, 'waste', m.category, m.unit, inputUnit);
+}
+
+function quickWaste() {
+  const name = document.getElementById('stock-out-name').value;
+  const qty = Number(document.getElementById('stock-out-qty').value || 0);
+  const inputUnit = document.getElementById('stock-out-unit').value;
+  const m = (stockData.masterAll || []).find(x => x.name === name);
+  if (!name || qty <= 0 || !m) return;
+
+  load(true);
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+    load(false);
+    toast(res, () => undoWaste(name, qty, inputUnit));
+    document.getElementById('stock-out-qty').value = '';
+    bumpFav(name);
+    renderFavorites();
+    refreshStock();
+  }).processInventoryAdjustment(name, qty, 'waste', m.category, m.unit, inputUnit);
+}
+
+function undoWaste(name, qty, inputUnit) {
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+    toast('元に戻しました');
+    refreshStock();
+  }).processInflowFromUI({ name: name, qty: qty, inputUnit: inputUnit, memo: 'Undo', isSet: false });
+}
+
+function quickAdjustPrompt(name, category, unit, currentQty) {
+  const val = prompt(`${name} の新しい在庫数を入力`, currentQty);
+  if (val === null) return;
+  const newVal = Number(val);
+  if (!isFinite(newVal)) return;
+  quickAdjust(name, newVal, category, unit, currentQty);
+}
+
+function quickAdjust(name, newVal, category, unit, oldVal) {
+  load(true);
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+    load(false);
+    toast(res, () => undoAdjust(name, oldVal, category, unit));
+    bumpFav(name);
+    renderFavorites();
+    refreshStock();
+  }).processInventoryAdjustment(name, newVal, 'adj', category, unit, unit);
+}
+
+function undoAdjust(name, oldVal, category, unit) {
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+    toast('元に戻しました');
+    refreshStock();
+  }).processInventoryAdjustment(name, oldVal, 'adj', category, unit, unit);
+}
+
+function quickCsvOut(input) {
+  const f = input.files && input.files[0];
+  if (!f) return;
+  load(true);
+  const reader = new FileReader();
+  reader.onload = e => {
+    google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+      google.script.run.withFailureHandler(handleGsError).withSuccessHandler(msg => {
+        load(false);
+        toast(msg);
+        refreshStock();
+      }).registerOutflowFinal(res.reductions || {});
+    }).analyzeSalesCSV(e.target.result);
+  };
+  reader.readAsText(f);
+}
+
+function quickInAnalyzeReceipt(input) {
+  const f = input.files && input.files[0];
+  if (!f) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const base64 = e.target.result.split(',')[1];
+    load(true);
+    google.script.run.withFailureHandler(handleGsError).withSuccessHandler(result => {
+      load(false);
+      if (!result || result.length === 0) {
+        toast('解析結果が取得できませんでした');
+        return;
+      }
+      quickInShowAIResult(result);
+    }).analyzeReceiptAI(base64);
+  };
+  reader.readAsDataURL(f);
+}
+
+function quickInShowAIResult(resultList) {
+  const itemsHtml = resultList.map(item => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #eee;">
+      <span style="font-weight:700;color:#444;">${item.name}</span>
+      <span style="font-weight:800;color:var(--main-blue);">${item.qty}</span>
+    </div>
+  `).join('');
+
+  const escaped = JSON.stringify(resultList).replace(/"/g, '&quot;');
+  const html = `
+    <div style="font-weight:800; text-align:center; margin-bottom:12px; color:#333;">AI解析結果</div>
+    <div style="font-size:12px;color:#666;margin-bottom:10px;">内容を確認して一括登録します。</div>
+    <div style="max-height:220px;overflow:auto;">${itemsHtml}</div>
+    <div style="margin-top:12px;">
+      <button class="btn-main" onclick="quickInExecuteAI('${escaped}')">一括登録</button>
+      <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+    </div>
+  `;
+  openModal(html);
+}
+
+function quickInExecuteAI(jsonStr) {
+  const dataList = JSON.parse(jsonStr);
+  closeModal();
+  load(true);
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+    load(false);
+    toast(res);
+    refreshStock();
+  }).processAIInflow(dataList);
+}
+</script>

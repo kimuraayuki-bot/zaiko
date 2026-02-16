@@ -1,0 +1,497 @@
+﻿<div id="set-main">
+  <div class="section-title">設定メニュー</div>
+  <div class="section-body">
+    <button class="menu-btn" onclick="openSubList('material')">材料マスタの登録・編集</button>
+    <button class="menu-btn" onclick="openSubList('item')">物品マスタの登録・編集</button>
+    <button class="menu-btn" onclick="showPage('pg-recipe')">レシピの登録・編集</button>
+    <button class="menu-btn" onclick="openUnitView()">単位・換算設定</button>
+    <button class="menu-btn" onclick="openShopView()">店舗・担当者情報の設定</button>
+  </div>
+</div>
+
+<div id="set-list" style="display: none;">
+  <button class="btn-back" onclick="switchSetView('set-main')">← メニューに戻る</button>
+  <div class="section-title" id="list-title">一覧</div>
+  <div class="section-body">
+    <div id="list-container"></div>
+  </div>
+  <button class="fab" onclick="openEditor()">＋</button>
+</div>
+
+<div id="set-editor" style="display: none;">
+  <button class="btn-back" onclick="switchSetView('set-list')">← 一覧に戻る</button>
+  <div class="section-title" id="editor-title">登録</div>
+  <div class="section-body">
+    <div class="card">
+      <input type="hidden" id="s-old-name">
+      <label style="font-size:12px; font-weight:800; color:#aaa; margin-top:0;">名称</label>
+      <input type="text" id="s-name">
+
+      <div style="display: flex; gap: 10px;">
+        <div style="flex: 1;"><label>閾値</label><input type="number" id="s-threshold"></div>
+        <div style="flex: 1;"><label>閾値単位</label><input type="text" id="s-threshold-unit" placeholder="例: 袋"></div>
+        <div style="flex: 1;"><label>在庫基準単位</label><input type="text" id="s-unit" oninput="document.getElementById('label-cunit').innerText = this.value;"></div>
+      </div>
+
+      <label>発注方法</label>
+      <select id="s-method" onchange="toggleSetFields()">
+        <option>メール</option>
+        <option>ネット</option>
+        <option>口頭</option>
+        <option>不要</option>
+      </select>
+
+      <div id="s-extra" style="background: #f8f9fa; padding: 15px; border-radius: 12px; border: 1px dashed #cbd5e1; margin-top: 15px;">
+        <div id="f-sup"><label style="margin-top:0;">仕入先</label><input type="text" id="s-supplier"></div>
+        <div id="f-add"><label>メールアドレス</label><input type="text" id="s-url-mail"></div>
+        <div id="f-pname"><label>発注名</label><input type="text" id="s-uname"></div>
+        <div id="f-url" style="display:none;"><label>発注URL</label><input type="text" id="s-url-web"></div>
+
+        <div id="f-con" style="display: flex; gap: 10px; align-items: flex-end;">
+          <div style="flex: 2;"><label>内容量</label><input type="number" id="s-uqty"></div>
+          <div style="flex: 1; padding-bottom: 12px; font-weight: 800; color: #888;"><span id="label-cunit">--</span></div>
+        </div>
+
+        <div id="f-std" style="display: flex; gap: 10px; align-items: flex-end; margin-top: 10px;">
+          <div style="flex: 2;"><label>発注数（セット）</label><input type="number" id="s-std"></div>
+          <div style="flex: 1; padding-bottom: 12px; font-weight: 800; color: #888;">セット</div>
+        </div>
+      </div>
+
+      <button class="btn-main" onclick="checkMasterConfirm()">保存内容を確認</button>
+    </div>
+  </div>
+</div>
+
+<div id="set-shop" style="display: none;">
+  <button class="btn-back" onclick="switchSetView('set-main')">← メニューに戻る</button>
+  <div class="section-title">店舗・担当者情報</div>
+  <div class="section-body">
+    <div class="card">
+      <label style="margin-top:0;">店舗名</label>
+      <input type="text" id="shop-name">
+      <label>担当者</label>
+      <input type="text" id="shop-staff">
+      <button class="btn-main" style="margin-bottom: 0;" onclick="openShopConfirm()">確認して保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="set-unit" style="display:none;">
+  <button class="btn-back" onclick="switchSetView('set-main')">← メニューに戻る</button>
+  <div class="section-title">単位・換算設定</div>
+  <div class="section-body">
+    <div class="card">
+      <label style="margin-top:0;">単位を追加</label>
+      <div style="display:flex; gap:8px;">
+        <input type="text" id="new-unit-name" placeholder="例: ケース">
+        <button class="btn-action" onclick="saveUnitMasterUI()">追加</button>
+      </div>
+      <div id="unit-master-list" style="margin-top:8px; font-size:12px; color:#666;"></div>
+    </div>
+
+    <div class="card">
+      <label style="margin-top:0;">換算対象アイテム</label>
+      <div style="font-size:12px; color:#666; line-height:1.6; margin-bottom:8px;">
+        使い方: <b>1袋 = 200g</b> のように「1入力単位が基準単位で何個分か」を登録します。
+      </div>
+
+      <label>1. 商品を選ぶ</label>
+      <select id="conv-item-select" onchange="renderConvRows()"></select>
+
+      <label>2. 基準単位（自動）</label>
+      <input type="text" id="conv-base-unit" readonly>
+      <div style="font-size:11px; color:#888; margin-top:6px;">
+        この商品在庫は <b id="conv-base-unit-label">--</b> で管理されます
+      </div>
+
+      <label style="margin-top:14px;">3. 換算ルールを入力</label>
+      <div id="conv-rows"></div>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button class="btn-action" style="flex:1;" onclick="addConvRow()">＋ 換算行を追加</button>
+        <button class="btn-action" style="flex:1;" onclick="applyConvExample()">例を入力（袋=200）</button>
+      </div>
+      <div id="conv-preview" style="margin-top:8px; font-size:12px; color:#666;"></div>
+      <button class="btn-main" style="margin-top:10px;" onclick="saveItemConvUI()">換算設定を保存</button>
+    </div>
+  </div>
+</div>
+<script>
+let curCat = '';
+let curList = [];
+let unitManageData = null;
+
+function methodKind(v) {
+  const s = String(v || '');
+  if (s.includes('メール')) return 'mail';
+  if (s.includes('ネット') || s.includes('Web')) return 'web';
+  if (s.includes('不要')) return 'none';
+  return 'copy';
+}
+
+function switchSetView(id) {
+  ['set-main', 'set-list', 'set-editor', 'set-shop', 'set-unit'].forEach(v => {
+    const el = document.getElementById(v);
+    if (el) el.style.display = 'none';
+  });
+  document.getElementById(id).style.display = 'block';
+  window.scrollTo(0, 0);
+}
+
+function openSubList(cat) {
+  curCat = cat;
+  document.getElementById('list-title').innerText = cat === 'material' ? '材料一覧' : '物品一覧';
+  switchSetView('set-list');
+  loadSetList();
+}
+
+function loadSetList() {
+  load(true);
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(d => {
+    load(false);
+    curList = curCat === 'material' ? (d.materials || []) : (d.items || []);
+    document.getElementById('list-container').innerHTML = curList.map(r => `
+      <div class="card alert-card" style="display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 15px;">
+        <div class="alert-card-inner" style="flex: 1;">
+          <div style="font-weight: 800; font-size: 15px; color: #444;">${r.name}</div>
+          <div style="font-size: 11px; color: #888; margin-top: 4px; font-weight: 800;">閾値: ${r.threshold} ${r.thresholdUnit || r.unit}</div>
+        </div>
+        <div style="display: flex; gap: 6px; width: 110px;">
+          <button class="btn-action" style="flex: 1; padding: 8px 0;" onclick="openEditor('${r.name}')">編集</button>
+          <button class="btn-action btn-danger-outline" style="flex: 1; padding: 8px 0;" onclick="confirmDeleteMaster('${r.name}')">削除</button>
+        </div>
+      </div>
+    `).join('');
+  }).getInitialData();
+}
+
+function openEditor(name = '') {
+  switchSetView('set-editor');
+  const reset = () => {
+    document.getElementById('s-old-name').value = '';
+    document.getElementById('s-name').value = '';
+    document.getElementById('s-threshold').value = '';
+    document.getElementById('s-threshold-unit').value = '';
+    document.getElementById('s-unit').value = '';
+    document.getElementById('label-cunit').innerText = '--';
+    document.getElementById('s-supplier').value = '';
+    document.getElementById('s-url-mail').value = '';
+    document.getElementById('s-url-web').value = '';
+    document.getElementById('s-uname').value = '';
+    document.getElementById('s-uqty').value = '';
+    document.getElementById('s-std').value = '';
+  };
+
+  if (name) {
+    const it = curList.find(x => x.name === name);
+    if (!it) return;
+    document.getElementById('editor-title').innerText = 'マスタ編集';
+    document.getElementById('s-old-name').value = it.name || '';
+    document.getElementById('s-name').value = it.name || '';
+    document.getElementById('s-threshold').value = it.threshold || '';
+    document.getElementById('s-threshold-unit').value = it.thresholdUnit || it.unit || '';
+    document.getElementById('s-unit').value = it.unit || '';
+    document.getElementById('label-cunit').innerText = it.unit || '--';
+    document.getElementById('s-method').value = it.method || document.getElementById('s-method').options[0].value;
+    document.getElementById('s-supplier').value = it.supplier || '';
+    document.getElementById('s-uname').value = it.uName || '';
+    document.getElementById('s-uqty').value = it.uQty || '';
+    document.getElementById('s-std').value = it.stdQty || '';
+    const mk = methodKind(it.method);
+    if (mk === 'mail') document.getElementById('s-url-mail').value = it.url || '';
+    if (mk === 'web') document.getElementById('s-url-web').value = it.url || '';
+  } else {
+    document.getElementById('editor-title').innerText = '新規登録';
+    reset();
+  }
+  toggleSetFields();
+}
+
+function toggleSetFields() {
+  const val = document.getElementById('s-method').value;
+  const kind = methodKind(val);
+  const wrap = document.getElementById('s-extra');
+  const fSup = document.getElementById('f-sup');
+  const fAdd = document.getElementById('f-add');
+  const fPname = document.getElementById('f-pname');
+  const fUrl = document.getElementById('f-url');
+
+  wrap.style.display = 'block';
+  fSup.style.display = 'block';
+  fPname.style.display = 'block';
+  fAdd.style.display = 'none';
+  fUrl.style.display = 'none';
+
+  if (kind === 'mail') fAdd.style.display = 'block';
+  else if (kind === 'web') { fSup.style.display = 'none'; fUrl.style.display = 'block'; }
+  else if (kind === 'none') wrap.style.display = 'none';
+}
+
+function checkMasterConfirm() {
+  const method = document.getElementById('s-method').value;
+  const kind = methodKind(method);
+  const d = {
+    oldName: document.getElementById('s-old-name').value,
+    name: document.getElementById('s-name').value,
+    threshold: document.getElementById('s-threshold').value,
+    thresholdUnit: document.getElementById('s-threshold-unit').value,
+    unit: document.getElementById('s-unit').value,
+    method: method,
+    supplier: document.getElementById('s-supplier').value,
+    url: kind === 'mail' ? document.getElementById('s-url-mail').value : document.getElementById('s-url-web').value,
+    uName: document.getElementById('s-uname').value,
+    uQty: document.getElementById('s-uqty').value,
+    stdQty: document.getElementById('s-std').value
+  };
+  if (!d.thresholdUnit) d.thresholdUnit = d.unit;
+
+  if (!d.name) { alert('名前を入力してください'); return; }
+
+  const rowHtml = (label, val) => `<div class="confirm-row"><span class="confirm-label">${label}</span><span class="confirm-val">${val || ''}</span></div>`;
+  let dynamicHtml = '';
+  if (kind !== 'none') {
+    if (kind !== 'web') dynamicHtml += rowHtml('仕入先', d.supplier);
+    if (kind === 'mail') dynamicHtml += rowHtml('メール', d.url);
+    if (kind === 'web') dynamicHtml += rowHtml('URL', d.url);
+    dynamicHtml += rowHtml('発注名', d.uName);
+    dynamicHtml += rowHtml('内容量', `${d.uQty || ''} ${d.unit || ''}`);
+    dynamicHtml += rowHtml('発注数', `${d.stdQty || ''} セット`);
+  }
+
+  const html = `
+    <div style="font-weight:800; text-align:center; margin-bottom:20px; color:#333; font-size:16px;">登録確認</div>
+    <div style="background:#f9f9f9; padding:15px; border-radius:16px; border: 1px solid #eee;">
+      ${rowHtml('名前', d.name)}
+      ${rowHtml('閾値', `${d.threshold || ''} ${d.thresholdUnit || d.unit || ''}`)}
+      ${rowHtml('発注方法', d.method)}
+      ${dynamicHtml}
+    </div>
+    <div style="margin-top:20px; display:flex; gap:10px;">
+      <button class="btn-main" style="margin:0; flex:1;" onclick="saveMasterFinal()">保存</button>
+      <button class="btn-cancel" style="margin:0; flex:1;" onclick="closeModal()">戻る</button>
+    </div>
+  `;
+  window.tempData = d;
+  openModal(html);
+}
+
+function saveMasterFinal() {
+  const sheet = curCat === 'material' ? '🫘｜材料一覧' : '🥤｜物品一覧';
+  closeModal();
+  load(true);
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+    load(false);
+    toast(res);
+    switchSetView('set-list');
+    loadSetList();
+  }).saveMasterGAS(window.tempData, sheet);
+}
+
+function confirmDeleteMaster(name) {
+  const html = `
+    <div style="font-weight:800; text-align:center; margin-bottom:20px; color:var(--red-text); font-size:18px;">削除確認</div>
+    <div style="background:#fff5f5; padding:18px; border-radius:16px; font-size:14px; color:#444; border: 1px solid var(--red); text-align:center; line-height:1.6;">
+      <b style="color:var(--red-text); font-size:16px;">${name}</b> を削除しますか？
+    </div>
+    <div style="margin-top:20px;">
+      <button class="btn-main btn-danger" onclick="deleteExecute('${name}')">削除する</button>
+      <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+    </div>
+  `;
+  openModal(html);
+}
+
+function deleteExecute(name) {
+  closeModal();
+  load(true);
+  const sheet = curCat === 'material' ? '🫘｜材料一覧' : '🥤｜物品一覧';
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+    load(false);
+    toast(res);
+    loadSetList();
+  }).deleteMasterGAS(name, sheet);
+}
+
+function openShopView() {
+  switchSetView('set-shop');
+  load(true);
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(d => {
+    load(false);
+    document.getElementById('shop-name').value = d.shop?.name || '';
+    document.getElementById('shop-staff').value = d.shop?.staff || '';
+  }).getInitialData();
+}
+
+function openShopConfirm() {
+  const name = document.getElementById('shop-name').value;
+  const staff = document.getElementById('shop-staff').value;
+  const html = `
+    <div style="font-weight:800; text-align:center; margin-bottom:20px; color:#333; font-size:16px;">店舗設定の確認</div>
+    <div style="background:#f9f9f9; padding:15px; border-radius:16px; border: 1px solid #eee;">
+      <div class="confirm-row"><span class="confirm-label">店舗名</span><span class="confirm-val">${name}</span></div>
+      <div class="confirm-row" style="border-bottom:none; margin-bottom:0; padding-bottom:0;"><span class="confirm-label">担当者</span><span class="confirm-val">${staff}</span></div>
+    </div>
+    <div style="margin-top:20px; display:flex; gap:10px;">
+      <button class="btn-main" style="margin:0; flex:1;" onclick="saveShopFinal()">保存</button>
+      <button class="btn-cancel" style="margin:0; flex:1;" onclick="closeModal()">戻る</button>
+    </div>
+  `;
+  openModal(html);
+}
+
+function saveShopFinal() {
+  closeModal();
+  load(true);
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+    load(false);
+    toast(res);
+    switchSetView('set-main');
+  }).saveShopSettings({
+    name: document.getElementById('shop-name').value,
+    staff: document.getElementById('shop-staff').value
+  });
+}
+
+function openUnitView() {
+  switchSetView('set-unit');
+  load(true);
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(d => {
+    load(false);
+    unitManageData = d;
+    renderUnitMasterList();
+    renderConvItemSelect();
+  }).getUnitManagementData();
+}
+
+function renderUnitMasterList() {
+  const units = (unitManageData && unitManageData.units) ? unitManageData.units : [];
+  document.getElementById('unit-master-list').innerText = units.length > 0 ? units.join(', ') : '単位は未登録です';
+}
+
+function saveUnitMasterUI() {
+  const unit = document.getElementById('new-unit-name').value.trim();
+  if (!unit) return;
+  load(true);
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+    load(false);
+    toast(res);
+    document.getElementById('new-unit-name').value = '';
+    openUnitView();
+  }).saveUnitMaster(unit);
+}
+
+function renderConvItemSelect() {
+  const sel = document.getElementById('conv-item-select');
+  const items = (unitManageData && unitManageData.items) ? unitManageData.items : [];
+  if (items.length === 0) {
+    sel.innerHTML = '<option value="">商品がありません</option>';
+    document.getElementById('conv-base-unit').value = '';
+    document.getElementById('conv-base-unit-label').innerText = '--';
+    document.getElementById('conv-rows').innerHTML = '';
+    document.getElementById('conv-preview').innerText = '';
+    return;
+  }
+  sel.innerHTML = items.map(i => `<option value="${i.name}">${i.name}</option>`).join('');
+  renderConvRows();
+}
+
+function renderConvRows() {
+  const itemName = document.getElementById('conv-item-select').value;
+  const item = ((unitManageData && unitManageData.items) ? unitManageData.items : []).find(x => x.name === itemName);
+  const rows = (unitManageData && unitManageData.conversions && unitManageData.conversions[itemName]) ? unitManageData.conversions[itemName] : [];
+  const baseUnit = (item && item.baseUnit) || (rows.find(r => Number(r.factor) === 1) || {}).unit || '';
+  document.getElementById('conv-base-unit').value = baseUnit;
+  document.getElementById('conv-base-unit-label').innerText = baseUnit || '--';
+
+  const box = document.getElementById('conv-rows');
+  box.innerHTML = '';
+  const displayRows = rows.filter(r => !(String(r.unit || '').trim() === baseUnit && Number(r.factor) === 1));
+  if (displayRows.length === 0) {
+    addConvRow();
+    updateConvPreview();
+    return;
+  }
+  displayRows.forEach(r => addConvRow(r.unit, r.factor));
+  updateConvPreview();
+}
+
+function addConvRow(unit = '', factor = '') {
+  const box = document.getElementById('conv-rows');
+  const baseUnit = document.getElementById('conv-base-unit').value || '--';
+  const row = document.createElement('div');
+  row.className = 'conv-row';
+  row.style = 'display:flex; gap:8px; margin-top:8px; align-items:center;';
+  row.innerHTML = `
+    <span style="font-size:12px; color:#666; white-space:nowrap;">1</span>
+    <input type="text" class="conv-unit" placeholder="入力単位（例: 袋）" value="${unit}" oninput="updateConvPreview()">
+    <span style="font-size:12px; color:#666; white-space:nowrap;">=</span>
+    <input type="number" class="conv-factor" placeholder="基準数量（例: 200）" value="${factor}" oninput="updateConvPreview()">
+    <span style="font-size:12px; color:#666; white-space:nowrap;">${baseUnit}</span>
+    <button class="btn-action btn-danger-outline" onclick="removeConvRow(this)">削除</button>
+  `;
+  box.appendChild(row);
+  updateConvPreview();
+}
+
+function removeConvRow(btn) {
+  if (!btn || !btn.parentElement) return;
+  btn.parentElement.remove();
+  updateConvPreview();
+}
+
+function updateConvPreview() {
+  const baseUnit = document.getElementById('conv-base-unit').value || '--';
+  const rows = Array.from(document.querySelectorAll('#conv-rows .conv-row'));
+  const lines = rows.map(row => {
+    const unit = row.querySelector('.conv-unit').value.trim();
+    const factor = Number(row.querySelector('.conv-factor').value);
+    if (!unit || !isFinite(factor) || factor <= 0) return '';
+    return `1${unit} = ${factor}${baseUnit}`;
+  }).filter(Boolean);
+  document.getElementById('conv-preview').innerText = lines.length > 0 ? `保存イメージ: ${lines.join(' / ')}` : '';
+}
+
+function applyConvExample() {
+  const box = document.getElementById('conv-rows');
+  box.innerHTML = '';
+  addConvRow('袋', 200);
+  updateConvPreview();
+}
+
+function saveItemConvUI() {
+  const itemName = document.getElementById('conv-item-select').value;
+  const baseUnit = document.getElementById('conv-base-unit').value.trim();
+  if (!itemName || !baseUnit) {
+    alert('商品を選択してください');
+    return;
+  }
+
+  const entries = Array.from(document.querySelectorAll('#conv-rows .conv-row')).map(row => ({
+    unit: row.querySelector('.conv-unit').value.trim(),
+    factor: Number(row.querySelector('.conv-factor').value)
+  })).filter(x => x.unit && x.factor > 0);
+
+  if (entries.length === 0) {
+    alert('換算ルールを1件以上入力してください（例: 1袋 = 200g）');
+    return;
+  }
+
+  if (entries.some(e => e.unit === baseUnit)) {
+    alert(`入力単位に基準単位「${baseUnit}」は不要です`);
+    return;
+  }
+
+  const unique = new Set(entries.map(e => e.unit));
+  if (unique.size !== entries.length) {
+    alert('入力単位が重複しています');
+    return;
+  }
+
+  load(true);
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+    load(false);
+    toast(res);
+    openUnitView();
+  }).saveItemUnitConversions({ itemName: itemName, baseUnit: baseUnit, entries: entries });
+}
+</script>

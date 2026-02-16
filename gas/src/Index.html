@@ -1,0 +1,139 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Line+Seed+JP:wght@100;400;700;900&display=swap">
+  <style>
+    :root { --bg-color: #ffffff; --light-blue: #f0f8ff; --main-blue: #1a73e8; --shadow: rgba(0, 0, 0, 0.08); --red: #fce8e6; --red-text: #d93025; }
+    body { font-family: 'LINE Seed JP', sans-serif; background: #f8f9fa; margin: 0; color: #333; }
+    .page { display: none; padding: 15px 15px 100px 15px; animation: slideUp 0.3s; }
+    .active { display: block; }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    
+    /* 蜈ｱ騾夐Κ蜩・*/
+    .section-title { font-weight: 800; font-size: 16px; color: #555; background-color: #e2e8f0; display: inline-block; padding: 8px 20px; border-radius: 12px 12px 0 0; margin: 20px 0 0 5px; }
+    .section-body { border-top: 2px solid #cbd5e1; padding-top: 20px; margin-bottom: 20px; }
+    .sticky-note { font-size: 16px; font-weight: 800; color: #444; background: #fff9c4; display: inline-block; padding: 8px 24px; margin: 0 0 15px 5px; border-left: 4px solid #fbc02d; box-shadow: 2px 2px 6px rgba(0,0,0,0.05); }
+
+    .card { background: white; border-radius: 12px; padding: 15px; margin-bottom: 15px; box-shadow: 0 4px 15px var(--shadow); border: 1px solid #f0f0f0; position: relative; }
+    .alert-card::before { content: ""; position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; background-color: #f8f9fa; border-radius: 50%; box-shadow: inset 2px 2px 4px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }
+    .alert-card-inner { padding-left: 18px; }
+
+    /* 險ｭ螳壹ち繝門ｰら畑驛ｨ蜩・*/
+    .menu-btn { width: 100%; padding: 18px 20px; border-radius: 12px; font-weight: 800; font-size: 15px; color: #444; background: #fff; border: 1px solid #eee; text-align: left; margin-bottom: 12px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 5px rgba(0,0,0,0.02); transition: 0.2s; }
+    .menu-btn:active { background: #f0f4f8; border-color: var(--main-blue); }
+    .menu-btn::after { content: ">"; font-size: 20px; color: #ccc; }
+    .btn-back { background: transparent; border: none; color: #888; font-weight: 800; font-size: 13px; cursor: pointer; padding: 10px 0; margin-bottom: 5px; display: inline-flex; align-items: center; gap: 5px; }
+    .fab { position: fixed; bottom: 95px; right: 20px; width: 56px; height: 56px; background-color: var(--main-blue); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; box-shadow: 0 4px 12px rgba(26,115,232,0.4); border: none; cursor: pointer; z-index: 1000; transition: 0.2s; }
+    .fab:active { transform: scale(0.92); }
+
+    /* 繝輔か繝ｼ繝縺ｨ繝懊ち繝ｳ */
+    input, select, textarea { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 10px; font-family: inherit; font-size: 14px; font-weight: 800; color: #333; box-sizing: border-box; background: #fafafa; outline: none; }
+    input:focus, select:focus { border-color: var(--main-blue); background: #fff; }
+    select { appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 10px center; background-size: 14px; }
+    
+    .btn-action { width: auto; min-width: 85px; padding: 10px 15px; border-radius: 10px; font-weight: 800; font-size: 13px; cursor: pointer; border: 1px solid var(--main-blue); background: var(--light-blue); color: var(--main-blue); transition: 0.2s; }
+    .btn-danger-outline { border-color: var(--red-text); background: #fff; color: var(--red-text); }
+    .btn-main { width: 100%; padding: 14px; border-radius: 12px; font-weight: 700; border: none; background: var(--main-blue); color: white; margin-bottom: 10px; cursor: pointer; box-shadow: 0 2px 8px rgba(26, 115, 232, 0.3); }
+    .btn-danger { background: var(--red-text); color: white; }
+    .btn-cancel { width: 100%; padding: 14px; border-radius: 12px; font-weight: 700; border: 1px solid #ccc; background: white; color: #666; cursor: pointer; }
+
+    /* 繝昴ャ繝励い繝・・髢｢騾｣ */
+    .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 5000; align-items: center; justify-content: center; }
+    .modal { background: white; width: 85%; max-width: 360px; border-radius: 24px; padding: 25px; box-shadow: 0 15px 40px rgba(0,0,0,0.3); box-sizing: border-box; max-height: 85vh; overflow-y: auto; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    @keyframes popIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+    .confirm-row { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 8px; }
+    .confirm-label { color: #888; font-weight: 800; font-size: 12px; }
+    .confirm-val { font-weight: 800; font-size: 14px; color: #333; text-align: right; word-break: break-all; margin-left: 10px; }
+
+    /* 繝翫ン繧ｲ繝ｼ繧ｷ繝ｧ繝ｳ */
+    .nav { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); display: flex; height: 75px; border-top: 1px solid #eee; z-index: 2000; }
+    .nav-btn { flex: 1; border: none; background: none; color: #888; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 22px; opacity: 0.35; transition: 0.3s; border-radius: 16px; }
+    .nav-btn.active { color: var(--main-blue); opacity: 1; transform: translateY(-5px); background-color: var(--light-blue); box-shadow: 0 4px 10px rgba(26,115,232,0.1); }
+    .nav-btn span { font-size: 11px; margin-top: 6px; font-weight: 700; }
+    
+    #toast { visibility: hidden; background: #333; color: white; padding: 12px 24px; border-radius: 30px; position: fixed; bottom: 85px; left: 50%; transform: translateX(-50%); z-index: 9999; font-size:13px; font-weight:bold;}
+    #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+  </style>
+</head>
+<body>
+  <div id="pg-home" class="page active"><?!= include('Page_Home'); ?></div>
+  <div id="pg-stock" class="page"><?!= include('Page_Stock'); ?></div>
+  <div id="pg-in" class="page"><?!= include('Page_Inflow'); ?></div>
+  <div id="pg-out" class="page"><?!= include('Page_Outflow'); ?></div>
+  <div id="pg-act" class="page"><?!= include('Page_Calendar'); ?></div>
+  <div id="pg-set" class="page"><?!= include('Page_Settings'); ?></div>
+  <div id="pg-recipe" class="page"><?!= include('Page_Recipe'); ?></div>
+
+  <div id="toast"></div>
+  <div id="overlay" class="overlay"></div> 
+  
+  <nav class="nav">
+    <button id="btn-home" class="nav-btn active" onclick="showPage('pg-home')">🏠<span>ホーム</span></button>
+    <button id="btn-stock" class="nav-btn" onclick="showPage('pg-stock')">📦<span>在庫操作</span></button>
+    <button id="btn-act" class="nav-btn" onclick="showPage('pg-act')">🗓️<span>予定</span></button>
+    <button id="btn-set" class="nav-btn" onclick="showPage('pg-set')">⚙️<span>設定</span></button>
+  </nav>
+
+  <script>
+    let __undoTimer = null;
+    let __undoFn = null;
+
+    function showPage(id, subMode = "") {
+      if(id === 'pg-in' || id === 'pg-out') id = 'pg-stock';
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+      let navId = id.replace('pg-', '');
+      if(navId === 'recipe') navId = 'set';
+      if(navId === 'in' || navId === 'out') navId = 'stock';
+      const nav = document.getElementById('btn-' + navId);
+      if (nav) nav.classList.add('active');
+      if(id === 'pg-home') refreshHome();
+      if(id === 'pg-stock') {
+        refreshStock();
+        if (typeof setStockTab === "function") setStockTab(subMode || "stock");
+      }
+      if(id === 'pg-recipe') refreshRecipe();
+      if(id === 'pg-act') refreshCalendar();
+    }
+    function toast(msg, undoFn = null) {
+      const t = document.getElementById("toast");
+      if (__undoTimer) clearTimeout(__undoTimer);
+      __undoFn = undoFn;
+      if (undoFn) {
+        t.innerHTML = `${msg} <button style="margin-left:8px;border:none;background:#fff;color:#333;border-radius:10px;padding:2px 8px;cursor:pointer;" onclick="runUndo()">元に戻す</button>`;
+      } else {
+        t.innerText = msg;
+      }
+      t.className = "show";
+      __undoTimer = setTimeout(() => {
+        t.className = "";
+        __undoFn = null;
+      }, 3000);
+    }
+    function runUndo() {
+      if (typeof __undoFn === "function") __undoFn();
+      __undoFn = null;
+      document.getElementById("toast").className = "";
+    }
+    function openModal(html) {
+      const o = document.getElementById("overlay");
+      o.innerHTML = `<div class="modal">${html}</div>`;
+      o.style.display = "flex";
+    }
+    function closeModal() { document.getElementById("overlay").style.display = "none"; }
+    function load(isLoading) {
+      if(isLoading) { openModal(`<div style="text-align:center; font-weight:bold;">処理中...</div>`); }
+      else { closeModal(); }
+    }
+    function handleGsError(err) {
+      load(false);
+      const msg = (err && err.message) ? err.message : "処理に失敗しました";
+      toast(msg);
+    }
+  </script>
+</body>
+</html>

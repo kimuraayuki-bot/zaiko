@@ -1,0 +1,135 @@
+﻿<div class="section-title">在庫アラート</div>
+<div class="section-body">
+  <div class="sticky-note">材料</div>
+  <div id="home-alert-materials"></div>
+  <div class="sticky-note item" style="margin-top:10px;">物品</div>
+  <div id="home-alert-items"></div>
+</div>
+
+<div class="section-title">今後7日間の予定</div>
+<div class="section-body">
+  <div id="home-schedule" class="card" style="padding: 10px 15px;"></div>
+</div>
+<script>
+let homeData = {};
+
+function refreshHome() {
+  load(true);
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(data => {
+    load(false);
+    homeData = data;
+
+    const render = (list) => {
+      const alerts = (list || []).filter(r => Number(r.currentQty) <= Number(r.thresholdBaseQty ?? r.threshold));
+      if (alerts.length === 0) return '<div class="card" style="font-size:12px; color:#ccc; text-align:center;">在庫アラートはありません</div>';
+      return alerts.map(r => `
+        <div class="card alert-card" style="display:flex; align-items:center; gap:10px;">
+          <div class="alert-card-inner" style="flex:2;">
+            <div style="font-weight:800; font-size:16px; color:#444; margin-bottom:6px;">${r.name}</div>
+            <div style="font-size:20px; color:var(--red-text); font-weight:700; line-height:1;">
+              <span style="font-size:12px; color:#777; font-weight:700;">残り</span>${r.currentQty} <span style="font-size:12px; color:#777;">${r.unit}</span>
+            </div>
+            <div style="font-size:11px; color:#888; margin-top:4px; font-weight:700;">
+              閾値: ${r.threshold} ${r.thresholdUnit || r.unit}
+            </div>
+          </div>
+          <div style="flex:1; display:flex; justify-content:flex-end;">${getActionBtn(r)}</div>
+        </div>
+      `).join('');
+    };
+
+    document.getElementById('home-alert-materials').innerHTML = render(data.materials);
+    document.getElementById('home-alert-items').innerHTML = render(data.items);
+    renderHomeSchedule();
+  }).getInitialData();
+}
+
+function methodType(method) {
+  const s = String(method || '');
+  if (s.includes('メール')) return 'mail';
+  if (s.includes('ネット') || s.includes('Web')) return 'web';
+  return 'copy';
+}
+
+function getActionBtn(r) {
+  const t = methodType(r.method);
+  if (t === 'mail') return `<button class="btn-action" onclick="confirmMail('${r.name}')">メール</button>`;
+  if (t === 'web') return `<button class="btn-action" onclick="confirmWeb('${r.name}')">発注サイト</button>`;
+  return `<button class="btn-action" onclick="confirmCopy('${r.name}')">コピー</button>`;
+}
+
+function confirmMail(name) {
+  const item = (homeData.masterWithUnits || []).find(x => x.name === name);
+  if (!item) return;
+  const body = `${item.supplier || ''} 様\n\n以下を発注お願いします。\n・${item.uName || item.name} x ${item.stdQty || ''}セット`;
+  const mailToUrl = `mailto:${item.url || ''}?subject=${encodeURIComponent('発注: ' + name)}&body=${encodeURIComponent(body)}`;
+
+  const html = `
+    <div style="font-weight:700; text-align:center; margin-bottom:15px; color:#444;">発注メール確認</div>
+    <div style="background:#fafafa; padding:15px; border-radius:10px; font-size:13px; text-align:left; color:#444; line-height:1.6; border: 1px solid #eee; white-space:pre-wrap;">${body}</div>
+    <div style="margin-top:20px;">
+      <button class="btn-main" onclick="location.href='${mailToUrl}'; closeModal();">メールアプリを開く</button>
+      <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+    </div>
+  `;
+  openModal(html);
+}
+
+function confirmCopy(name) {
+  const item = (homeData.masterWithUnits || []).find(x => x.name === name);
+  if (!item) return;
+  const text = `${item.name} を ${item.stdQty || ''} セット発注`;
+  const html = `
+    <div style="font-weight:700; text-align:center; margin-bottom:15px; color:#444;">コピー内容の確認</div>
+    <div style="background:#fafafa; padding:15px; border-radius:10px; font-size:13px; text-align:left; color:#444; border: 1px solid #eee;">${text}</div>
+    <div style="margin-top:20px;">
+      <button class="btn-main" onclick="navigator.clipboard.writeText('${text}'); toast('コピーしました'); closeModal();">クリップボードにコピー</button>
+      <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+    </div>
+  `;
+  openModal(html);
+}
+
+function confirmWeb(name) {
+  const item = (homeData.masterWithUnits || []).find(x => x.name === name);
+  if (!item) return;
+  const html = `
+    <div style="font-weight:700; text-align:center; margin-bottom:15px; color:#444;">発注サイトへ移動</div>
+    <div style="background:#fafafa; padding:15px; border-radius:10px; font-size:13px; text-align:left; color:#444; border: 1px solid #eee;">${item.name}<br>${item.supplier || ''}</div>
+    <div style="margin-top:20px;">
+      <button class="btn-main" onclick="window.open('${item.url || ''}', '_blank'); closeModal();">サイトを開く</button>
+      <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+    </div>
+  `;
+  openModal(html);
+}
+
+function renderHomeSchedule() {
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(data => {
+    const today = new Date();
+    const days = ['(日)','(月)','(火)','(水)','(木)','(金)','(土)'];
+    let scheduleHtml = '';
+
+    for (let i = 0; i < 7; i++) {
+      let d = new Date();
+      d.setDate(today.getDate() + i);
+      let ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const events = (data.events && data.events[ds]) ? data.events[ds] : [];
+      events.forEach(ev => {
+        if (!ev.unit && Number(ev.qty) === 0) {
+          scheduleHtml += `
+            <div style="border-bottom:1px solid #f0f0f0; padding:10px 0; display:flex; align-items:center;">
+              <div style="font-weight:700; color:#555; width:100px; font-size:14px;">${d.getMonth()+1}/${d.getDate()} ${days[d.getDay()]}</div>
+              <div style="color:#666; font-size:13px; font-weight:700;">${ev.name}</div>
+            </div>
+          `;
+        }
+      });
+    }
+
+    document.getElementById('home-schedule').innerHTML = scheduleHtml || '<div style="color:#888; font-size:13px;">予定はありません</div>';
+  }).getCalendarData();
+}
+</script>
+
+

@@ -19,12 +19,11 @@ This repository now includes a Vercel embed page at the project root (`index.htm
 ### 2) Deploy to Vercel
 
 1. Import this repository into Vercel.
-2. Framework preset: `Other` (static).
+2. Framework preset: `Vite`.
 3. Deploy.
 
 ### 3) Open embedded app
 
-- Access your Vercel URL.
-- Enter GAS Web App URL and click load.
-- Or open directly with query:
-  - `https://<your-vercel-domain>/?gasUrl=https://script.google.com/macros/s/<DEPLOY_ID>/exec`
+- Set env var `GAS_API_URL` to your GAS Web App `/exec` URL.
+- Optional: set `GAS_API_TOKEN` if you configure `API_TOKEN` in GAS Script Properties.
+- Open your Vercel URL.

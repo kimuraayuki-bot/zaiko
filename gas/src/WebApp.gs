@@ -8,7 +8,12 @@ const WEBAPP_SHEET_ITEMS = '🥤｜物品一覧';
 const WEBAPP_SHEET_RECIPES = '☕｜商品一覧';
 const WEBAPP_SHEET_HISTORY = '📦｜履歴';
 
-function doGet() {
+function doGet(e) {
+  if (e && e.parameter && e.parameter.api === '1') {
+    const method = String(e.parameter.method || '').trim();
+    const payload = e.parameter.payload ? JSON.parse(e.parameter.payload) : null;
+    return apiDispatch_(method, payload, e);
+  }
   return HtmlService.createTemplateFromFile('Index').evaluate()
     .setTitle('Cafe Inventory Smart')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')

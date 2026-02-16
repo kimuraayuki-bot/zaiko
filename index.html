@@ -72,7 +72,7 @@
       <input id="gas-url" type="url" placeholder="Enter GAS Web App URL">
       <button id="load-btn" type="button">Load</button>
     </div>
-    <div class="note">
+    <div class="note" id="status-note">
       Example: https://script.google.com/macros/s/XXXXX/exec
     </div>
   </header>
@@ -85,22 +85,50 @@
     const input = document.getElementById('gas-url');
     const frame = document.getElementById('app-frame');
     const btn = document.getElementById('load-btn');
+    const statusNote = document.getElementById('status-note');
 
-    const initialUrl = qs.get('gasUrl') || localStorage.getItem('gas_embed_url') || '';
-    input.value = initialUrl;
-    if (initialUrl) frame.src = initialUrl;
+    async function getEnvGasUrl() {
+      try {
+        const res = await fetch('/api/config', { cache: 'no-store' });
+        if (!res.ok) return '';
+        const data = await res.json();
+        return String(data.gasUrl || '').trim();
+      } catch (e) {
+        return '';
+      }
+    }
 
     function loadFrame() {
       const url = input.value.trim();
       if (!url) return;
       localStorage.setItem('gas_embed_url', url);
       frame.src = url;
+      statusNote.textContent = 'Loaded.';
+    }
+
+    async function init() {
+      const queryUrl = String(qs.get('gasUrl') || '').trim();
+      const envUrl = await getEnvGasUrl();
+      const savedUrl = String(localStorage.getItem('gas_embed_url') || '').trim();
+      const initialUrl = queryUrl || envUrl || savedUrl;
+
+      if (!initialUrl) {
+        statusNote.textContent = 'GAS URL is not configured. Set GAS_WEBAPP_URL in Vercel or enter URL and click Load.';
+        return;
+      }
+
+      input.value = initialUrl;
+      frame.src = initialUrl;
+      statusNote.textContent = queryUrl
+        ? 'Loaded from query parameter.'
+        : (envUrl ? 'Loaded from Vercel env GAS_WEBAPP_URL.' : 'Loaded from local storage.');
     }
 
     btn.addEventListener('click', loadFrame);
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') loadFrame();
     });
+    init();
   </script>
 </body>
 </html>

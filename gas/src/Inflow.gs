@@ -49,14 +49,39 @@ function analyzeReceiptAI(base64) {
 
 function processAIInflow(dataList) {
   const initial = getInitialData().masterAll;
-  dataList.forEach(d => {
-    const m = initial.find(x => x.name === d.name);
-    if (m) {
-      const changeAmount = Number(d.qty) * (Number(m.uQty) || 1);
-      appendToLog([new Date(), m.category, m.name, '入庫', changeAmount, m.unit, 'AI解析入庫', '']);
+  let applied = 0;
+  let skipped = 0;
+
+  (dataList || []).forEach(d => {
+    const targetName = String(d.targetName || d.name || '').trim();
+    const qty = Number(d.qty);
+    if (!targetName || !isFinite(qty) || qty <= 0) {
+      skipped++;
+      return;
     }
+
+    const m = initial.find(x => x.name === targetName);
+    if (!m) {
+      skipped++;
+      return;
+    }
+
+    const inputUnit = String(d.inputUnit || d.unit || m.unit || '').trim() || m.unit;
+    let changeAmount = 0;
+    try {
+      changeAmount = convertQtyToBase(m.name, qty, inputUnit, m.unit);
+    } catch (e) {
+      skipped++;
+      return;
+    }
+
+    appendToLog([new Date(), m.category, m.name, '入庫', changeAmount, m.unit, 'AI解析入庫', '']);
+    applied++;
   });
-  return dataList.length + '件の入庫を登録しました';
+
+  return skipped > 0
+    ? `${applied}件の入庫を登録しました（${skipped}件は未登録/無効のためスキップ）`
+    : `${applied}件の入庫を登録しました`;
 }
 
 function processInflowFromUI(d) {

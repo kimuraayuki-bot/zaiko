@@ -3,8 +3,9 @@
   <div class="camera-box" onclick="document.getElementById('cam-in').click()">
     <div style="font-size: 32px; margin-bottom: 5px;">📷</div>
     <div style="font-weight: 800; color: #555; font-size: 14px;">レシート画像をスキャン</div>
-    <input type="file" id="cam-in" style="display:none;" onchange="startAI(this)">
+    <input type="file" id="cam-in" style="display:none;" onchange="onReceiptSelected(this)">
   </div>
+  <button class="btn-main" style="margin-top:10px;" onclick="startAI()">AI解析を実行</button>
 </div>
 
 <div class="section-title" style="margin-top: 30px;">手動入庫登録</div>
@@ -29,6 +30,8 @@
 </div>
 <script>
 let mIn = [];
+let aiReceiptBase64 = '';
+let aiInDraft = [];
 
 function refreshInflow() {
   load(true);
@@ -48,55 +51,143 @@ function updateManualInUnit() {
   document.getElementById('manual-in-input-unit').innerHTML = units.map(u => `<option value="${u}">${u}</option>`).join('');
 }
 
-function startAI(input) {
-  if (!input.files[0]) return;
+function onReceiptSelected(input) {
+  if (!input || !input.files || !input.files[0]) return;
   const reader = new FileReader();
   reader.onload = function(e) {
-    const base64 = e.target.result.split(',')[1];
-    load(true);
-    google.script.run.withFailureHandler(handleGsError).withSuccessHandler(result => {
-      load(false);
-      if (result && result.length > 0) {
-        showAIResultPopup(result);
-      } else {
-        alert('解析結果が取得できませんでした');
-      }
-    }).analyzeReceiptAI(base64);
+    aiReceiptBase64 = e.target.result.split(',')[1] || '';
+    toast('画像を選択しました。AI解析を実行してください');
   };
   reader.readAsDataURL(input.files[0]);
 }
 
-function showAIResultPopup(resultList) {
-  const itemsHtml = resultList.map(item => `
-    <div style="background:#fff; border:1px solid #eee; padding:12px; border-radius:12px; margin-bottom:10px; display:flex; align-items:center; gap:10px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
-      <div style="flex:2;">
-        <div style="font-size:13px; font-weight:800; color:#444;">${item.name}</div>
-        <div style="color:var(--main-blue); font-weight:800;">${item.qty} <span style="font-size:11px; color:#777;">セット</span></div>
-      </div>
-      <div style="font-size:10px; color:#aaa; font-weight:bold;">AI</div>
-    </div>
-  `).join('');
+function startAI() {
+  if (!aiReceiptBase64) {
+    alert('先に画像ファイルを選択してください');
+    return;
+  }
+  load(true);
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(result => {
+    load(false);
+    if (result && result.length > 0) {
+      showAIResultPopup(result);
+    } else {
+      alert('解析結果が取得できませんでした');
+    }
+  }).analyzeReceiptAI(aiReceiptBase64);
+}
 
-  const escaped = JSON.stringify(resultList).replace(/"/g, '&quot;');
+function aiNorm(text) {
+  return String(text || '').toLowerCase().replace(/\s+/g, '').replace(/[()（）\-ー_\/]/g, '');
+}
+
+function aiFindBestMaster(aiName) {
+  const n = aiNorm(aiName);
+  if (!n) return { match: null, status: '未該当', score: 0 };
+  let best = null;
+  let bestScore = 0;
+  (mIn || []).forEach(m => {
+    const mn = aiNorm(m.name);
+    let score = 0;
+    if (n === mn) score = 100;
+    else if (n.includes(mn) || mn.includes(n)) score = 70;
+    else {
+      let hit = 0;
+      for (const ch of n) if (mn.includes(ch)) hit++;
+      score = Math.floor((hit / Math.max(n.length, 1)) * 40);
+    }
+    if (score > bestScore) {
+      best = m;
+      bestScore = score;
+    }
+  });
+  if (!best || bestScore < 50) return { match: null, status: '未該当', score: bestScore };
+  return { match: best, status: bestScore >= 95 ? '一致' : '候補', score: bestScore };
+}
+
+function aiBuildDraft(resultList) {
+  return (resultList || []).map(item => {
+    const found = aiFindBestMaster(item.name);
+    const m = found.match;
+    const units = m ? ((m.unitOptions && m.unitOptions.length) ? m.unitOptions : [m.unit]) : [];
+    return {
+      aiName: item.name || '',
+      qty: Number(item.qty) || 0,
+      targetName: m ? m.name : '',
+      category: m ? m.category : '',
+      inputUnit: units[0] || '',
+      status: found.status
+    };
+  });
+}
+
+function showAIResultPopup(resultList) {
+  aiInDraft = aiBuildDraft(resultList);
+  const options = (mIn || []).map(m => `<option value="${m.name}">${m.name}（${m.category}）</option>`).join('');
+  const rowsHtml = aiInDraft.map((r, idx) => {
+    const m = (mIn || []).find(x => x.name === r.targetName);
+    const units = m ? ((m.unitOptions && m.unitOptions.length) ? m.unitOptions : [m.unit]) : [];
+    const unitOptions = units.map(u => `<option value="${u}" ${u === r.inputUnit ? 'selected' : ''}>${u}</option>`).join('');
+    const statusColor = r.status === '一致' ? '#2e7d32' : (r.status === '候補' ? '#ef6c00' : '#c62828');
+    return `
+      <div class="ai-in-row" data-idx="${idx}" style="border:1px solid #eee; border-radius:12px; padding:10px; margin-bottom:8px;">
+        <div style="font-size:12px; color:#666; margin-bottom:6px;">AI: <b>${r.aiName}</b> <span style="color:${statusColor}; font-weight:800;">[${r.status}]</span></div>
+        <label style="margin-top:0;">マスタ候補</label>
+        <select class="ai-target" onchange="aiInOnTargetChange(this)"><option value="">-- 未該当（スキップ） --</option>${options}</select>
+        <label>数量</label>
+        <input type="number" class="ai-qty" value="${r.qty}">
+        <label>入力単位</label>
+        <select class="ai-unit">${unitOptions}</select>
+      </div>
+    `;
+  }).join('');
+
   const html = `
     <div style="font-weight:800; text-align:center; margin-bottom:15px; color:#333; font-size:18px;">解析結果</div>
-    <p style="font-size:12px; color:#666; text-align:center; margin-bottom:15px;">内容を確認して登録してください</p>
-    <div style="max-height: 250px; overflow-y: auto; padding: 5px;">${itemsHtml}</div>
+    <p style="font-size:12px; color:#666; text-align:center; margin-bottom:15px;">候補・数量・単位を修正して登録してください（未該当はスキップ）</p>
+    <div id="ai-in-rows" style="max-height: 300px; overflow-y: auto; padding: 5px;">${rowsHtml}</div>
     <div style="margin-top:20px;">
-      <button class="btn-main" onclick="executeAIIn('${escaped}')">登録する</button>
+      <button class="btn-main" onclick="executeAIInFromModal()">登録する</button>
       <button class="btn-cancel" onclick="closeModal()">戻る</button>
     </div>
   `;
   openModal(html);
+  const rows = document.querySelectorAll('#ai-in-rows .ai-in-row');
+  rows.forEach((row, idx) => {
+    const sel = row.querySelector('.ai-target');
+    sel.value = aiInDraft[idx].targetName || '';
+  });
 }
 
-function executeAIIn(jsonStr) {
-  const dataList = JSON.parse(jsonStr);
+function aiInOnTargetChange(sel) {
+  const row = sel.closest('.ai-in-row');
+  if (!row) return;
+  const unitSel = row.querySelector('.ai-unit');
+  const m = (mIn || []).find(x => x.name === sel.value);
+  const units = m ? ((m.unitOptions && m.unitOptions.length) ? m.unitOptions : [m.unit]) : [];
+  unitSel.innerHTML = units.map(u => `<option value="${u}">${u}</option>`).join('');
+}
+
+function executeAIInFromModal() {
+  const rows = Array.from(document.querySelectorAll('#ai-in-rows .ai-in-row'));
+  const dataList = rows.map(row => ({
+    targetName: row.querySelector('.ai-target').value,
+    qty: Number(row.querySelector('.ai-qty').value || 0),
+    inputUnit: row.querySelector('.ai-unit').value
+  })).filter(x => x.targetName && x.qty > 0);
+
+  if (dataList.length === 0) {
+    alert('登録対象がありません（未該当はスキップされます）');
+    return;
+  }
   closeModal();
   load(true);
   google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
     load(false);
     toast(res);
+    aiReceiptBase64 = '';
+    const f = document.getElementById('cam-in');
+    if (f) f.value = '';
   }).processAIInflow(dataList);
 }
 

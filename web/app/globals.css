@@ -38,6 +38,12 @@ body {
   box-shadow: 0 12px 36px rgba(24, 41, 74, 0.06);
 }
 
+.notice {
+  align-self: center;
+  justify-self: center;
+  width: min(100%, 420px);
+}
+
 .notice h2 {
   margin: 0 0 10px;
   font-size: 1rem;

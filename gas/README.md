@@ -35,5 +35,9 @@ This repository now includes a Vercel embed page at the project root (`index.htm
 Set these Script Properties in Apps Script:
 
 - `GOOGLE_OAUTH_CLIENT_ID`: Web OAuth client ID (`xxxxx.apps.googleusercontent.com`)
-- `ALLOWED_EMAILS`: comma-separated allow list
-  - example: `ayukiofumiria@gmail.com,admin@example.com`
+
+Allowed emails are now managed inside the app UI:
+
+- Open `設定 > 認証メール設定`
+- Add/remove emails there
+- The app stores them in the spreadsheet sheet `🔐｜認証メール`

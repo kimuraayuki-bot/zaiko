@@ -6,6 +6,7 @@
     <button class="menu-btn" onclick="showPage('pg-recipe')">レシピの登録・編集</button>
     <button class="menu-btn" onclick="openUnitView()">単位・換算設定</button>
     <button class="menu-btn" onclick="openShopView()">店舗・担当者情報の設定</button>
+    <button class="menu-btn" onclick="openAuthView()">認証メール設定</button>
   </div>
 </div>
 
@@ -116,6 +117,24 @@
     </div>
   </div>
 </div>
+
+<div id="set-auth" style="display:none;">
+  <button class="btn-back" onclick="switchSetView('set-main')">← メニューに戻る</button>
+  <div class="section-title">認証メール設定</div>
+  <div class="section-body">
+    <div class="card">
+      <label style="margin-top:0;">メールアドレスを追加</label>
+      <input type="email" id="auth-email" placeholder="example@gmail.com">
+      <label>メモ（任意）</label>
+      <input type="text" id="auth-note" placeholder="店長 / 運用担当など">
+      <button class="btn-main" style="margin-bottom:0;" onclick="saveAllowedEmailUI()">追加する</button>
+    </div>
+    <div class="card">
+      <label style="margin-top:0;">登録済みメールアドレス</label>
+      <div id="auth-email-list" style="margin-top:10px;"></div>
+    </div>
+  </div>
+</div>
 <script>
 let curCat = '';
 let curList = [];
@@ -130,7 +149,7 @@ function methodKind(v) {
 }
 
 function switchSetView(id) {
-  ['set-main', 'set-list', 'set-editor', 'set-shop', 'set-unit'].forEach(v => {
+  ['set-main', 'set-list', 'set-editor', 'set-shop', 'set-unit', 'set-auth'].forEach(v => {
     const el = document.getElementById(v);
     if (el) el.style.display = 'none';
   });
@@ -378,6 +397,80 @@ function saveUnitMasterUI() {
     document.getElementById('new-unit-name').value = '';
     openUnitView();
   }).saveUnitMaster(unit);
+}
+
+function openAuthView() {
+  switchSetView('set-auth');
+  loadAllowedEmailsUI();
+}
+
+function loadAllowedEmailsUI() {
+  load(true);
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+    load(false);
+    const list = res && res.emails ? res.emails : [];
+    const box = document.getElementById('auth-email-list');
+    if (!list.length) {
+      box.innerHTML = '<div style="font-size:12px; color:#888;">登録済みメールアドレスはありません</div>';
+      return;
+    }
+
+    box.innerHTML = list.map(function(row) {
+      return `
+        <div class="card alert-card" style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:12px 15px; margin-bottom:10px;">
+          <div class="alert-card-inner" style="flex:1;">
+            <div style="font-weight:800; font-size:14px; color:#444;">${row.email}</div>
+            <div style="font-size:11px; color:#888; margin-top:4px;">
+              ${row.note ? row.note + ' / ' : ''}${row.createdAt || ''}
+            </div>
+          </div>
+          <button class="btn-action btn-danger-outline" onclick="confirmRemoveAllowedEmail('${row.email}')">削除</button>
+        </div>
+      `;
+    }).join('');
+  }).getAllowedEmailSettings();
+}
+
+function saveAllowedEmailUI() {
+  const email = document.getElementById('auth-email').value.trim();
+  const note = document.getElementById('auth-note').value.trim();
+  if (!email) {
+    alert('メールアドレスを入力してください');
+    return;
+  }
+
+  load(true);
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+    load(false);
+    toast(res);
+    document.getElementById('auth-email').value = '';
+    document.getElementById('auth-note').value = '';
+    loadAllowedEmailsUI();
+  }).addAllowedEmail(email, note);
+}
+
+function confirmRemoveAllowedEmail(email) {
+  const html = `
+    <div style="font-weight:800; text-align:center; margin-bottom:20px; color:var(--red-text); font-size:18px;">削除確認</div>
+    <div style="background:#fff5f5; padding:18px; border-radius:16px; font-size:14px; color:#444; border:1px solid var(--red); text-align:center; line-height:1.6;">
+      <b style="color:var(--red-text); font-size:16px;">${email}</b> を認証一覧から削除しますか？
+    </div>
+    <div style="margin-top:20px;">
+      <button class="btn-main btn-danger" onclick="removeAllowedEmailUI('${email}')">削除する</button>
+      <button class="btn-cancel" onclick="closeModal()">キャンセル</button>
+    </div>
+  `;
+  openModal(html);
+}
+
+function removeAllowedEmailUI(email) {
+  closeModal();
+  load(true);
+  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+    load(false);
+    toast(res);
+    loadAllowedEmailsUI();
+  }).removeAllowedEmail(email);
 }
 
 function renderConvItemSelect() {

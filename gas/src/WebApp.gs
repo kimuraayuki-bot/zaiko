@@ -7,6 +7,7 @@ const WEBAPP_SHEET_MATERIALS = '🫘｜材料一覧';
 const WEBAPP_SHEET_ITEMS = '🥤｜物品一覧';
 const WEBAPP_SHEET_RECIPES = '☕｜商品一覧';
 const WEBAPP_SHEET_HISTORY = '📦｜履歴';
+const WEBAPP_SHEET_AUTH = '🔐｜認証メール';
 const GOOGLE_TOKENINFO_URL = 'https://oauth2.googleapis.com/tokeninfo';
 const GOOGLE_OAUTH_CLIENT_ID =
   PropertiesService.getScriptProperties().getProperty('GOOGLE_OAUTH_CLIENT_ID') || '';
@@ -173,11 +174,15 @@ function verifyGoogleIdToken_(idToken) {
 }
 
 function readAllowedEmails_() {
-  const raw = PropertiesService.getScriptProperties().getProperty('ALLOWED_EMAILS') || '';
-  return String(raw)
-    .split(/[\n,]/)
-    .map(v => String(v || '').trim().toLowerCase())
-    .filter(v => v);
+  const sheet = ensureAuthSheet_();
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+
+  return sheet
+    .getRange(2, 1, lastRow - 1, 1)
+    .getDisplayValues()
+    .map(function(row) { return String(row[0] || '').trim().toLowerCase(); })
+    .filter(function(email) { return email; });
 }
 
 function isAllowedEmail_(email) {
@@ -333,4 +338,87 @@ function saveShopSettings(d) {
   p.setProperty('SHOP_NAME', d.name);
   p.setProperty('STAFF_NAME', d.staff);
   return '店舗情報を保存しました';
+}
+
+function getAllowedEmailSettings() {
+  const sheet = ensureAuthSheet_();
+  const lastRow = sheet.getLastRow();
+  const emails = lastRow < 2
+    ? []
+    : sheet.getRange(2, 1, lastRow - 1, 3).getDisplayValues().map(function(row) {
+        return {
+          email: String(row[0] || '').trim().toLowerCase(),
+          createdAt: row[1] || '',
+          note: row[2] || ''
+        };
+      }).filter(function(row) { return row.email; });
+
+  return { emails: emails };
+}
+
+function addAllowedEmail(email, note) {
+  const normalized = normalizeAllowedEmail_(email);
+  if (!normalized) throw new Error('メールアドレスを入力してください');
+
+  const lock = LockService.getDocumentLock();
+  lock.waitLock(30000);
+  try {
+    const sheet = ensureAuthSheet_();
+    const values = readAllowedEmails_();
+    if (values.indexOf(normalized) !== -1) {
+      throw new Error('そのメールアドレスはすでに登録されています');
+    }
+
+    sheet.appendRow([
+      normalized,
+      Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss'),
+      String(note || '').trim()
+    ]);
+    return '認証メールを追加しました';
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function removeAllowedEmail(email) {
+  const normalized = normalizeAllowedEmail_(email);
+  if (!normalized) throw new Error('削除対象のメールアドレスが不正です');
+
+  const lock = LockService.getDocumentLock();
+  lock.waitLock(30000);
+  try {
+    const sheet = ensureAuthSheet_();
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) throw new Error('登録済みメールアドレスがありません');
+
+    const values = sheet.getRange(2, 1, lastRow - 1, 1).getDisplayValues();
+    for (var i = 0; i < values.length; i++) {
+      if (String(values[i][0] || '').trim().toLowerCase() === normalized) {
+        sheet.deleteRow(i + 2);
+        return '認証メールを削除しました';
+      }
+    }
+    throw new Error('対象のメールアドレスが見つかりません');
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function ensureAuthSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(WEBAPP_SHEET_AUTH);
+  if (!sheet) {
+    sheet = ss.insertSheet(WEBAPP_SHEET_AUTH);
+  }
+
+  const header = [['email', 'createdAt', 'note']];
+  const current = sheet.getRange(1, 1, 1, 3).getDisplayValues();
+  if (current[0].join('|') !== header[0].join('|')) {
+    sheet.getRange(1, 1, 1, 3).setValues(header);
+  }
+  return sheet;
+}
+
+function normalizeAllowedEmail_(email) {
+  return String(email || '').trim().toLowerCase();
 }

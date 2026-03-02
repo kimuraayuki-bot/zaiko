@@ -24,13 +24,6 @@ type UserInfo = {
   picture?: string;
 };
 
-type SessionCreateResult = {
-  ok: boolean;
-  now: string;
-  sessionToken: string;
-  expiresIn: number;
-};
-
 type GoogleCredentialResponse = {
   credential?: string;
 };
@@ -96,7 +89,6 @@ export default function Page() {
   const [authState, setAuthState] = useState<AuthState>("checking");
   const [user, setUser] = useState<UserInfo | null>(null);
   const [scriptReady, setScriptReady] = useState(false);
-  const [apiResult, setApiResult] = useState<SessionCreateResult | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [sessionToken, setSessionToken] = useState("");
   const buttonRef = useRef<HTMLDivElement | null>(null);
@@ -125,18 +117,18 @@ export default function Page() {
     setErrorMessage("");
 
     try {
-      const gasResponse = await callGasApi<SessionCreateResult>(response.credential, "createSession", {});
+      const gasResponse = await callGasApi<{
+        sessionToken: string;
+      }>(response.credential, "createSession", {});
       setUser({
         email: payload.email,
         name: payload.name ?? payload.email,
         picture: payload.picture,
       });
-      setApiResult(gasResponse.data);
       setSessionToken(gasResponse.data.sessionToken);
       setAuthState("signed_in");
     } catch (error) {
       setUser(null);
-      setApiResult(null);
       setSessionToken("");
       setAuthState(error instanceof GasApiError && error.status === 403 ? "denied" : "error");
       setErrorMessage(toUserMessage(error));
@@ -184,7 +176,6 @@ export default function Page() {
     if (google && user?.email) google.accounts.id.revoke(user.email, () => {});
     if (google) google.accounts.id.disableAutoSelect();
     setUser(null);
-    setApiResult(null);
     setSessionToken("");
     setErrorMessage("");
     setAuthState("signed_out");
@@ -215,7 +206,6 @@ export default function Page() {
       ) : authState !== "signed_in" ? (
         <section className="notice">
           <h2>Google ログインが必要です</h2>
-          <p className="noticeText">ログイン成功後に id_token を Next.js サーバー経由で GAS へ POST します。</p>
           <div ref={buttonRef} className="googleButton" />
           {authState === "authorizing" ? <p className="noticeText">認証中...</p> : null}
           {authState === "denied" || authState === "error" ? (
@@ -223,32 +213,15 @@ export default function Page() {
           ) : null}
         </section>
       ) : (
-        <section className="frameWrap">
-          <div className="userBar">
-            <div className="userMeta">
-              {user?.picture ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={user.picture} alt={user.name} className="avatar" />
-              ) : null}
-              <div>
-                <strong>{user?.name}</strong>
-                <p>{user?.email}</p>
-              </div>
-            </div>
-            <button type="button" onClick={handleSignOut} className="signOutButton">
-              Sign out
-            </button>
-          </div>
-
-          <p className="noticeText">
-            API認証結果: {apiResult ? JSON.stringify({ ok: apiResult.ok, now: apiResult.now, expiresIn: apiResult.expiresIn }) : "未取得"}
-          </p>
-
+        <section className="appShell">
+          <button type="button" onClick={handleSignOut} className="floatingSignOut">
+            Sign out
+          </button>
           {iframeSrc ? (
             <iframe
               src={iframeSrc}
               title="GAS Web App"
-              className="frame"
+              className="frame frameFullscreen"
               loading="lazy"
               allow="clipboard-read; clipboard-write"
             />
@@ -257,10 +230,6 @@ export default function Page() {
           )}
         </section>
       )}
-
-      <footer className="footer">
-        <p>id_token は URL や localStorage に保存せず、ログイン直後にサーバー経由で送信しています。</p>
-      </footer>
     </main>
   );
 }

@@ -166,7 +166,7 @@ function openSubList(cat) {
 
 function loadSetList() {
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(d => {
+  runAuthed('getInitialData', d => {
     load(false);
     curList = curCat === 'material' ? (d.materials || []) : (d.items || []);
     document.getElementById('list-container').innerHTML = curList.map(r => `
@@ -181,7 +181,7 @@ function loadSetList() {
         </div>
       </div>
     `).join('');
-  }).getInitialData();
+  });
 }
 
 function openEditor(name = '') {
@@ -298,12 +298,12 @@ function saveMasterFinal() {
   const sheet = curCat === 'material' ? '🫘｜材料一覧' : '🥤｜物品一覧';
   closeModal();
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+  runAuthed('saveMasterGAS', res => {
     load(false);
     toast(res);
     switchSetView('set-list');
     loadSetList();
-  }).saveMasterGAS(window.tempData, sheet);
+  }, window.tempData, sheet);
 }
 
 function confirmDeleteMaster(name) {
@@ -324,21 +324,21 @@ function deleteExecute(name) {
   closeModal();
   load(true);
   const sheet = curCat === 'material' ? '🫘｜材料一覧' : '🥤｜物品一覧';
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+  runAuthed('deleteMasterGAS', res => {
     load(false);
     toast(res);
     loadSetList();
-  }).deleteMasterGAS(name, sheet);
+  }, name, sheet);
 }
 
 function openShopView() {
   switchSetView('set-shop');
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(d => {
+  runAuthed('getInitialData', d => {
     load(false);
     document.getElementById('shop-name').value = d.shop?.name || '';
     document.getElementById('shop-staff').value = d.shop?.staff || '';
-  }).getInitialData();
+  });
 }
 
 function openShopConfirm() {
@@ -361,11 +361,11 @@ function openShopConfirm() {
 function saveShopFinal() {
   closeModal();
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+  runAuthed('saveShopSettings', res => {
     load(false);
     toast(res);
     switchSetView('set-main');
-  }).saveShopSettings({
+  }, {
     name: document.getElementById('shop-name').value,
     staff: document.getElementById('shop-staff').value
   });
@@ -374,12 +374,12 @@ function saveShopFinal() {
 function openUnitView() {
   switchSetView('set-unit');
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(d => {
+  runAuthed('getUnitManagementData', d => {
     load(false);
     unitManageData = d;
     renderUnitMasterList();
     renderConvItemSelect();
-  }).getUnitManagementData();
+  });
 }
 
 function renderUnitMasterList() {
@@ -391,12 +391,12 @@ function saveUnitMasterUI() {
   const unit = document.getElementById('new-unit-name').value.trim();
   if (!unit) return;
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+  runAuthed('saveUnitMaster', res => {
     load(false);
     toast(res);
     document.getElementById('new-unit-name').value = '';
     openUnitView();
-  }).saveUnitMaster(unit);
+  }, unit);
 }
 
 function openAuthView() {
@@ -406,7 +406,7 @@ function openAuthView() {
 
 function loadAllowedEmailsUI() {
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+  runAuthed('getAllowedEmailSettings', res => {
     load(false);
     const list = res && res.emails ? res.emails : [];
     const box = document.getElementById('auth-email-list');
@@ -428,7 +428,7 @@ function loadAllowedEmailsUI() {
         </div>
       `;
     }).join('');
-  }).getAllowedEmailSettings();
+  });
 }
 
 function saveAllowedEmailUI() {
@@ -440,13 +440,13 @@ function saveAllowedEmailUI() {
   }
 
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+  runAuthed('addAllowedEmail', res => {
     load(false);
     toast(res);
     document.getElementById('auth-email').value = '';
     document.getElementById('auth-note').value = '';
     loadAllowedEmailsUI();
-  }).addAllowedEmail(email, note);
+  }, email, note);
 }
 
 function confirmRemoveAllowedEmail(email) {
@@ -466,11 +466,11 @@ function confirmRemoveAllowedEmail(email) {
 function removeAllowedEmailUI(email) {
   closeModal();
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+  runAuthed('removeAllowedEmail', res => {
     load(false);
     toast(res);
     loadAllowedEmailsUI();
-  }).removeAllowedEmail(email);
+  }, email);
 }
 
 function renderConvItemSelect() {
@@ -581,10 +581,10 @@ function saveItemConvUI() {
   }
 
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+  runAuthed('saveItemUnitConversions', res => {
     load(false);
     toast(res);
     openUnitView();
-  }).saveItemUnitConversions({ itemName: itemName, baseUnit: baseUnit, entries: entries });
+  }, { itemName: itemName, baseUnit: baseUnit, entries: entries });
 }
 </script>

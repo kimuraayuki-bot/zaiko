@@ -91,6 +91,7 @@ export default function Page() {
   const [scriptReady, setScriptReady] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [sessionToken, setSessionToken] = useState("");
+  const [idToken, setIdToken] = useState("");
   const buttonRef = useRef<HTMLDivElement | null>(null);
 
   const iframeSrc = useMemo(() => {
@@ -115,6 +116,7 @@ export default function Page() {
 
     setAuthState("authorizing");
     setErrorMessage("");
+    setIdToken(response.credential);
 
     try {
       const gasResponse = await callGasApi<{
@@ -129,10 +131,25 @@ export default function Page() {
       setAuthState("signed_in");
     } catch (error) {
       setUser(null);
+      setIdToken("");
       setSessionToken("");
       setAuthState(error instanceof GasApiError && error.status === 403 ? "denied" : "error");
       setErrorMessage(toUserMessage(error));
     }
+  }, []);
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type !== "gas-session-expired") return;
+      setUser(null);
+      setIdToken("");
+      setSessionToken("");
+      setAuthState("signed_out");
+      setErrorMessage("セッションの有効期限が切れました。Googleで再ログインしてください。");
+    };
+
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
   }, []);
 
   useEffect(() => {
@@ -175,7 +192,13 @@ export default function Page() {
     const google = (window as Window & { google?: GoogleIdentity }).google;
     if (google && user?.email) google.accounts.id.revoke(user.email, () => {});
     if (google) google.accounts.id.disableAutoSelect();
+
+    if (idToken && sessionToken) {
+      void callGasApi(idToken, "revokeSession", { sessionToken }).catch(() => undefined);
+    }
+
     setUser(null);
+    setIdToken("");
     setSessionToken("");
     setErrorMessage("");
     setAuthState("signed_out");
@@ -224,6 +247,7 @@ export default function Page() {
               className="frame frameFullscreen"
               loading="lazy"
               allow="clipboard-read; clipboard-write"
+              referrerPolicy="no-referrer"
             />
           ) : (
             <p className="noticeError">iframe セッションが取得できませんでした。</p>

@@ -3,7 +3,8 @@
 // 出庫関連
 //==========================================
 
-function analyzeSalesCSV(csvData) {
+function analyzeSalesCSV(csvData, sessionToken) {
+  requireSession_(sessionToken);
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const recipes = ss.getSheetByName('☕｜商品一覧').getDataRange().getValues();
   const source = String(csvData || '');
@@ -80,9 +81,10 @@ function analyzeSalesCSV(csvData) {
   return { summary: salesSummary, reductions: reductions };
 }
 
-function registerOutflowFinal(reductionData) {
+function registerOutflowFinal(reductionData, sessionToken) {
+  requireSession_(sessionToken);
   const date = new Date();
-  const initial = getInitialData().masterAll;
+  const initial = getInitialDataInternal_().masterAll;
   let count = 0;
   let skipped = 0;
 
@@ -108,7 +110,7 @@ function registerOutflowFinal(reductionData) {
       continue;
     }
 
-    appendToLog([date, category, name, '出庫', -baseQty, baseUnit, 'Square売上連携', '']);
+    appendToLogInternal_([date, category, name, '出庫', -baseQty, baseUnit, 'Square売上連携', '']);
     count++;
   }
 

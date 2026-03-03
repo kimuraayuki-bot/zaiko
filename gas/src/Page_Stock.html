@@ -86,7 +86,7 @@ function setStockTab(mode) {
 
 function refreshStock() {
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(data => {
+  runAuthed('getInitialData', data => {
     load(false);
     stockData = data || { materials: [], items: [], masterAll: [] };
     window.__stockMaster = (stockData.materials || []).concat(stockData.items || []);
@@ -94,7 +94,7 @@ function refreshStock() {
     renderQuickSelectors();
     renderFavorites();
     setStockTab(stockTabMode || 'stock');
-  }).getInitialData();
+  });
 }
 
 function renderStockList() {
@@ -219,23 +219,23 @@ function quickInflow() {
   if (!name || qty <= 0) return;
 
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+  runAuthed('processInflowFromUI', res => {
     load(false);
     toast(res, () => undoInflow(name, qty, inputUnit));
     document.getElementById('stock-in-qty').value = '';
     bumpFav(name);
     renderFavorites();
     refreshStock();
-  }).processInflowFromUI({ name: name, qty: qty, inputUnit: inputUnit, memo: 'クイック入庫', isSet: false });
+  }, { name: name, qty: qty, inputUnit: inputUnit, memo: 'クイック入庫', isSet: false });
 }
 
 function undoInflow(name, qty, inputUnit) {
   const m = (stockData.masterAll || []).find(x => x.name === name);
   if (!m) return;
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+  runAuthed('processInventoryAdjustment', res => {
     toast('元に戻しました');
     refreshStock();
-  }).processInventoryAdjustment(name, qty, 'waste', m.category, m.unit, inputUnit);
+  }, name, qty, 'waste', m.category, m.unit, inputUnit);
 }
 
 function quickWaste() {
@@ -246,21 +246,21 @@ function quickWaste() {
   if (!name || qty <= 0 || !m) return;
 
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+  runAuthed('processInventoryAdjustment', res => {
     load(false);
     toast(res, () => undoWaste(name, qty, inputUnit));
     document.getElementById('stock-out-qty').value = '';
     bumpFav(name);
     renderFavorites();
     refreshStock();
-  }).processInventoryAdjustment(name, qty, 'waste', m.category, m.unit, inputUnit);
+  }, name, qty, 'waste', m.category, m.unit, inputUnit);
 }
 
 function undoWaste(name, qty, inputUnit) {
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+  runAuthed('processInflowFromUI', res => {
     toast('元に戻しました');
     refreshStock();
-  }).processInflowFromUI({ name: name, qty: qty, inputUnit: inputUnit, memo: 'Undo', isSet: false });
+  }, { name: name, qty: qty, inputUnit: inputUnit, memo: 'Undo', isSet: false });
 }
 
 function quickAdjustPrompt(name, category, unit, currentQty) {
@@ -273,20 +273,20 @@ function quickAdjustPrompt(name, category, unit, currentQty) {
 
 function quickAdjust(name, newVal, category, unit, oldVal) {
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+  runAuthed('processInventoryAdjustment', res => {
     load(false);
     toast(res, () => undoAdjust(name, oldVal, category, unit));
     bumpFav(name);
     renderFavorites();
     refreshStock();
-  }).processInventoryAdjustment(name, newVal, 'adj', category, unit, unit);
+  }, name, newVal, 'adj', category, unit, unit);
 }
 
 function undoAdjust(name, oldVal, category, unit) {
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+  runAuthed('processInventoryAdjustment', res => {
     toast('元に戻しました');
     refreshStock();
-  }).processInventoryAdjustment(name, oldVal, 'adj', category, unit, unit);
+  }, name, oldVal, 'adj', category, unit, unit);
 }
 
 function quickOutCsvSelected(input) {
@@ -306,11 +306,11 @@ function quickOutAnalyzeCsvExec() {
     return;
   }
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+  runAuthed('analyzeSalesCSV', res => {
     load(false);
     stockOutBuffer = (res && res.reductions) ? res.reductions : {};
     showStockOutPreview(stockOutBuffer);
-  }).analyzeSalesCSV(stockOutCsvText);
+  }, stockOutCsvText);
 }
 
 function showStockOutPreview(reductions) {
@@ -339,7 +339,7 @@ function showStockOutPreview(reductions) {
 function executeStockCsvOut() {
   closeModal();
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(msg => {
+  runAuthed('registerOutflowFinal', msg => {
     load(false);
     toast(msg);
     stockOutBuffer = null;
@@ -347,7 +347,7 @@ function executeStockCsvOut() {
     const f = document.getElementById('stock-out-csv');
     if (f) f.value = '';
     refreshStock();
-  }).registerOutflowFinal(stockOutBuffer || {});
+  }, stockOutBuffer || {});
 }
 
 function quickInReceiptSelected(input) {
@@ -367,14 +367,14 @@ function quickInAnalyzeReceiptExec() {
     return;
   }
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(result => {
+  runAuthed('analyzeReceiptAI', result => {
     load(false);
     if (!result || result.length === 0) {
       toast('解析結果が取得できませんでした');
       return;
     }
     quickInShowAIResult(result);
-  }).analyzeReceiptAI(stockInReceiptBase64);
+  }, stockInReceiptBase64);
 }
 
 function stockAiNorm(text) {
@@ -484,13 +484,13 @@ function quickInExecuteAIFromModal() {
   }
   closeModal();
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+  runAuthed('processAIInflow', res => {
     load(false);
     toast(res);
     stockInReceiptBase64 = '';
     const f = document.getElementById('stock-in-receipt');
     if (f) f.value = '';
     refreshStock();
-  }).processAIInflow(dataList);
+  }, dataList);
 }
 </script>

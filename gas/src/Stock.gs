@@ -7,7 +7,8 @@ const STOCK_SHEET_MATERIALS = '🫘｜材料一覧';
 const STOCK_SHEET_ITEMS = '🥤｜物品一覧';
 const STOCK_SHEET_HISTORY = '📦｜履歴';
 
-function updateStockDirectly(data) {
+function updateStockDirectly(data, sessionToken) {
+  requireSession_(sessionToken);
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheetName = (data.category === '材料') ? STOCK_SHEET_MATERIALS : STOCK_SHEET_ITEMS;
   const sheet = ss.getSheetByName(sheetName);

@@ -3,7 +3,8 @@
 // 商品レシピの保存
 //==========================================
 
-function saveRecipeFromUI(data) {
+function saveRecipeFromUI(data, sessionToken) {
+  requireSession_(sessionToken);
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('☕｜商品一覧');
   if (!sheet) throw new Error('シート「☕｜商品一覧」が見つかりません');

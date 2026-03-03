@@ -34,12 +34,12 @@ let masterOut = [];
 
 function refreshOutflow() {
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(d => {
+  runAuthed('getInitialData', d => {
     load(false);
     masterOut = d.masterWithUnits || [];
     document.getElementById('waste-name').innerHTML = masterOut.map(m => `<option value="${m.name}">${m.name}</option>`).join('');
     updateWasteUnit();
-  }).getInitialData();
+  });
 }
 
 function updateWasteUnit() {
@@ -55,11 +55,11 @@ function analyzeSquare(input) {
   load(true);
   const reader = new FileReader();
   reader.onload = e => {
-    google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+    runAuthed('analyzeSalesCSV', res => {
       load(false);
       outBuffer = res.reductions;
       showSquareResultPopup(res.reductions || {});
-    }).analyzeSalesCSV(e.target.result);
+    }, e.target.result);
   };
   reader.readAsText(f);
 }
@@ -92,10 +92,10 @@ function showSquareResultPopup(reductions) {
 function registerOutFinal() {
   closeModal();
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(msg => {
+  runAuthed('registerOutflowFinal', msg => {
     load(false);
     toast(msg);
-  }).registerOutflowFinal(outBuffer || {});
+  }, outBuffer || {});
 }
 
 function confirmWaste() {
@@ -122,11 +122,11 @@ function confirmWaste() {
 function executeWaste(name, qty, category, unit, inputUnit) {
   closeModal();
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(() => {
+  runAuthed('processInventoryAdjustment', () => {
     load(false);
     toast('廃棄を登録しました');
     document.getElementById('waste-qty').value = '';
-  }).processInventoryAdjustment(name, qty, 'waste', category, unit, inputUnit);
+  }, name, qty, 'waste', category, unit, inputUnit);
 }
 </script>
 

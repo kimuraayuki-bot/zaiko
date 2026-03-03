@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Line+Seed+JP:wght@100;400;700;900&display=swap">
+  <meta name="referrer" content="no-referrer">
   <style>
     :root { --bg-color: #ffffff; --light-blue: #f0f8ff; --main-blue: #1a73e8; --shadow: rgba(0, 0, 0, 0.08); --red: #fce8e6; --red-text: #d93025; }
     body { font-family: 'LINE Seed JP', sans-serif; background: #f8f9fa; margin: 0; color: #333; }
@@ -78,6 +78,7 @@
   </nav>
 
   <script>
+    window.__sessionToken = <?!= JSON.stringify(sessionToken || '') ?>;
     let __undoTimer = null;
     let __undoFn = null;
 
@@ -132,7 +133,26 @@
     function handleGsError(err) {
       load(false);
       const msg = (err && err.message) ? err.message : "処理に失敗しました";
+      if (msg.includes("セッションが切れました")) {
+        try {
+          if (window.parent && window.parent !== window) {
+            window.parent.postMessage({ type: "gas-session-expired" }, "*");
+          }
+        } catch (e) {}
+      }
       toast(msg);
+    }
+
+    function runAuthed(methodName, successHandler, ...args) {
+      if (!window.__sessionToken) {
+        handleGsError({ message: "セッションが切れました。再ログインしてください。" });
+        return;
+      }
+
+      const runner = google.script.run
+        .withFailureHandler(handleGsError)
+        .withSuccessHandler(successHandler);
+      runner[methodName](...args, window.__sessionToken);
     }
 
     function notifyEmbedReady() {

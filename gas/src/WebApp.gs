@@ -15,21 +15,12 @@ const SESSION_TTL_SEC = 60 * 60;
 
 function doGet(e) {
   const sessionToken = e && e.parameter ? String(e.parameter.st || '') : '';
-  const session = getSessionFromToken_(sessionToken);
+  const session = getSessionFromToken_(sessionToken, true);
   if (!session) {
-    const deny = HtmlService.createHtmlOutput(
-      '<!doctype html><html><body><h3>401 Unauthorized</h3><p>Session is missing or expired.</p></body></html>'
-    );
-    deny.setTitle('Unauthorized');
-    deny.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-    return deny;
+    return createUnauthorizedHtml_();
   }
 
-  return HtmlService.createTemplateFromFile('Index')
-    .evaluate()
-    .setTitle('Cafe Inventory Smart')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  return buildAppHtml_(sessionToken);
 }
 
 function doPost(e) {
@@ -45,6 +36,18 @@ function doPost(e) {
 
   const idToken = String(request.data.idToken || '');
   const action = String(request.data.action || '');
+  const payload = request.data.payload && typeof request.data.payload === 'object' ? request.data.payload : {};
+
+  if (action === 'revokeSession') {
+    revokeSession_(String(payload.sessionToken || ''));
+    return jsonResponse_({
+      status: 200,
+      ok: true,
+      data: {
+        revoked: true
+      }
+    });
+  }
 
   if (!idToken) {
     return jsonResponse_({
@@ -111,6 +114,25 @@ function doPost(e) {
 
 function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+function buildAppHtml_(sessionToken) {
+  const template = HtmlService.createTemplateFromFile('Index');
+  template.sessionToken = String(sessionToken || '');
+  return template
+    .evaluate()
+    .setTitle('Cafe Inventory Smart')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function createUnauthorizedHtml_() {
+  const deny = HtmlService.createHtmlOutput(
+    '<!doctype html><html><body><h3>401 Unauthorized</h3><p>Session is missing or expired.</p></body></html>'
+  );
+  deny.setTitle('Unauthorized');
+  deny.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  return deny;
 }
 
 function parseJsonRequest_(e) {
@@ -210,7 +232,7 @@ function createSession_(email) {
   return { token: token, expiresIn: SESSION_TTL_SEC };
 }
 
-function getSessionFromToken_(token) {
+function getSessionFromToken_(token, touch) {
   if (!token) return null;
   const cacheKey = 'sess:' + String(token);
   const raw = CacheService.getScriptCache().get(cacheKey);
@@ -223,13 +245,44 @@ function getSessionFromToken_(token) {
       CacheService.getScriptCache().remove(cacheKey);
       return null;
     }
+    if (touch) {
+      session.expiresAt = Date.now() + (SESSION_TTL_SEC * 1000);
+      CacheService.getScriptCache().put(cacheKey, JSON.stringify(session), SESSION_TTL_SEC);
+    }
     return session;
   } catch (err) {
     return null;
   }
 }
 
-function getInitialData() {
+function revokeSession_(token) {
+  if (!token) return;
+  CacheService.getScriptCache().remove('sess:' + String(token));
+}
+
+function requireSession_(sessionToken) {
+  const session = getSessionFromToken_(sessionToken, true);
+  if (!session) {
+    throw new Error('セッションが切れました。再ログインしてください。');
+  }
+  return session;
+}
+
+function appendToLogInternal_(data) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const historySheet = ss.getSheetByName(WEBAPP_SHEET_HISTORY);
+  if (!historySheet) {
+    throw new Error('履歴シートが見つかりません');
+  }
+  historySheet.appendRow(data);
+}
+
+function getInitialData(sessionToken) {
+  requireSession_(sessionToken);
+  return getInitialDataInternal_();
+}
+
+function getInitialDataInternal_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const props = PropertiesService.getScriptProperties();
 
@@ -306,7 +359,8 @@ function getInitialData() {
   };
 }
 
-function saveMasterGAS(d, sheetName) {
+function saveMasterGAS(d, sheetName, sessionToken) {
+  requireSession_(sessionToken);
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
   const data = sheet.getDataRange().getValues();
   let rowIdx = data.findIndex(r => r[0] === d.oldName || r[0] === d.name) + 1;
@@ -326,21 +380,24 @@ function saveMasterGAS(d, sheetName) {
   return 'マスタを保存しました';
 }
 
-function deleteMasterGAS(name, sheetName) {
+function deleteMasterGAS(name, sheetName, sessionToken) {
+  requireSession_(sessionToken);
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
   const idx = sheet.getDataRange().getValues().findIndex(r => r[0] === name) + 1;
   if (idx > 0) sheet.deleteRow(idx);
   return '削除しました';
 }
 
-function saveShopSettings(d) {
+function saveShopSettings(d, sessionToken) {
+  requireSession_(sessionToken);
   const p = PropertiesService.getScriptProperties();
   p.setProperty('SHOP_NAME', d.name);
   p.setProperty('STAFF_NAME', d.staff);
   return '店舗情報を保存しました';
 }
 
-function getAllowedEmailSettings() {
+function getAllowedEmailSettings(sessionToken) {
+  requireSession_(sessionToken);
   const sheet = ensureAuthSheet_();
   const lastRow = sheet.getLastRow();
   const emails = lastRow < 2
@@ -356,7 +413,8 @@ function getAllowedEmailSettings() {
   return { emails: emails };
 }
 
-function addAllowedEmail(email, note) {
+function addAllowedEmail(email, note, sessionToken) {
+  requireSession_(sessionToken);
   const normalized = normalizeAllowedEmail_(email);
   if (!normalized) throw new Error('メールアドレスを入力してください');
 
@@ -380,7 +438,8 @@ function addAllowedEmail(email, note) {
   }
 }
 
-function removeAllowedEmail(email) {
+function removeAllowedEmail(email, sessionToken) {
+  requireSession_(sessionToken);
   const normalized = normalizeAllowedEmail_(email);
   if (!normalized) throw new Error('削除対象のメールアドレスが不正です');
 

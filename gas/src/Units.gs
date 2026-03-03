@@ -30,7 +30,8 @@ function getUnitMasterList() {
   return Array.from(new Set(units));
 }
 
-function saveUnitMaster(unitName) {
+function saveUnitMaster(unitName, sessionToken) {
+  requireSession_(sessionToken);
   ensureUnitSheets();
   const u = String(unitName || '').trim();
   if (!u) throw new Error('単位を入力してください');
@@ -102,8 +103,9 @@ function convertQtyToBase(itemName, qty, inputUnit, baseUnit) {
   return num * factor;
 }
 
-function getUnitManagementData() {
-  const data = getInitialData();
+function getUnitManagementData(sessionToken) {
+  requireSession_(sessionToken);
+  const data = getInitialDataInternal_();
   const items = (data.masterAll || []).map(x => ({ name: x.name, baseUnit: x.unit }));
   const map = getItemConversionsMap();
   const conversions = {};
@@ -119,7 +121,8 @@ function getUnitManagementData() {
   };
 }
 
-function saveItemUnitConversions(payload) {
+function saveItemUnitConversions(payload, sessionToken) {
+  requireSession_(sessionToken);
   ensureUnitSheets();
   const itemName = String(payload.itemName || '').trim();
   const baseUnit = String(payload.baseUnit || '').trim();

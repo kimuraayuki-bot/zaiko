@@ -35,13 +35,13 @@ let aiInDraft = [];
 
 function refreshInflow() {
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(d => {
+  runAuthed('getInitialData', d => {
     load(false);
     mIn = d.masterAll || [];
     const opts = mIn.map(x => `<option value="${x.name}">${x.name}</option>`).join('');
     document.getElementById('manual-in-name').innerHTML = opts;
     updateManualInUnit();
-  }).getInitialData();
+  });
 }
 
 function updateManualInUnit() {
@@ -67,14 +67,14 @@ function startAI() {
     return;
   }
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(result => {
+  runAuthed('analyzeReceiptAI', result => {
     load(false);
     if (result && result.length > 0) {
       showAIResultPopup(result);
     } else {
       alert('解析結果が取得できませんでした');
     }
-  }).analyzeReceiptAI(aiReceiptBase64);
+  }, aiReceiptBase64);
 }
 
 function aiNorm(text) {
@@ -182,13 +182,13 @@ function executeAIInFromModal() {
   }
   closeModal();
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+  runAuthed('processAIInflow', res => {
     load(false);
     toast(res);
     aiReceiptBase64 = '';
     const f = document.getElementById('cam-in');
     if (f) f.value = '';
-  }).processAIInflow(dataList);
+  }, dataList);
 }
 
 function confirmManualIn() {
@@ -215,11 +215,11 @@ function confirmManualIn() {
 function executeManualIn(name, qty, inputUnit) {
   closeModal();
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(res => {
+  runAuthed('processInflowFromUI', res => {
     load(false);
     toast(res);
     document.getElementById('manual-in-qty').value = '';
-  }).processInflowFromUI({ name: name, qty: qty, inputUnit: inputUnit, memo: '手動入庫', isSet: false });
+  }, { name: name, qty: qty, inputUnit: inputUnit, memo: '手動入庫', isSet: false });
 }
 </script>
 

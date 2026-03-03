@@ -3,7 +3,8 @@
 // 入庫関連
 //==========================================
 
-function analyzeReceiptAI(base64) {
+function analyzeReceiptAI(base64, sessionToken) {
+  requireSession_(sessionToken);
   const apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
   if (!apiKey) throw new Error('GEMINI_API_KEY が未設定です');
   if (!base64) throw new Error('レシート画像データが空です');
@@ -56,8 +57,9 @@ function analyzeReceiptAI(base64) {
   return parsed;
 }
 
-function processAIInflow(dataList) {
-  const initial = getInitialData().masterAll;
+function processAIInflow(dataList, sessionToken) {
+  requireSession_(sessionToken);
+  const initial = getInitialDataInternal_().masterAll;
   let applied = 0;
   let skipped = 0;
 
@@ -84,7 +86,7 @@ function processAIInflow(dataList) {
       return;
     }
 
-    appendToLog([new Date(), m.category, m.name, '入庫', changeAmount, m.unit, 'AI解析入庫', '']);
+    appendToLogInternal_([new Date(), m.category, m.name, '入庫', changeAmount, m.unit, 'AI解析入庫', '']);
     applied++;
   });
 
@@ -93,9 +95,10 @@ function processAIInflow(dataList) {
     : `${applied}件の入庫を登録しました`;
 }
 
-function processInflowFromUI(d) {
+function processInflowFromUI(d, sessionToken) {
+  requireSession_(sessionToken);
   if (!d || !d.name) return 'エラー: 入力が不正です';
-  const initial = getInitialData().masterAll;
+  const initial = getInitialDataInternal_().masterAll;
   const m = initial.find(x => x.name === d.name);
   if (!m) return 'エラー: マスタが見つかりません';
   const qty = Number(d.qty);
@@ -109,6 +112,6 @@ function processInflowFromUI(d) {
     changeAmount = convertQtyToBase(m.name, qty, inputUnit, m.unit);
   }
 
-  appendToLog([new Date(), m.category, m.name, '入庫', changeAmount, m.unit, d.memo || '手動入庫', '']);
+  appendToLogInternal_([new Date(), m.category, m.name, '入庫', changeAmount, m.unit, d.memo || '手動入庫', '']);
   return `入庫登録: ${d.name} (+${changeAmount}${m.unit})`;
 }

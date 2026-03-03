@@ -3,8 +3,9 @@
 // 在庫調整 / 廃棄
 //==========================================
 
-function processInventoryAdjustment(name, inputQty, type, category, unit, inputUnit) {
-  const data = getInitialData().masterAll;
+function processInventoryAdjustment(name, inputQty, type, category, unit, inputUnit, sessionToken) {
+  requireSession_(sessionToken);
+  const data = getInitialDataInternal_().masterAll;
   const item = data.find(x => x.name === name);
   const baseUnit = item ? item.unit : unit;
   const currentTheoryQty = item ? Number(item.currentQty) : 0;
@@ -27,6 +28,6 @@ function processInventoryAdjustment(name, inputQty, type, category, unit, inputU
 
   if (diff === 0) return '在庫数に変更はありません';
 
-  appendToLog([new Date(), category, name, action, diff, baseUnit, memo, '']);
+  appendToLogInternal_([new Date(), category, name, action, diff, baseUnit, memo, '']);
   return `${action}を登録しました (${diff > 0 ? '+' : ''}${diff}${baseUnit})`;
 }

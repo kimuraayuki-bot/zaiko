@@ -54,16 +54,16 @@ let calendarData = { events: {} };
 
 function refreshCalendar() {
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(data => {
+  runAuthed('getCalendarData', data => {
     calendarData = data || { events: {} };
-    google.script.run.withFailureHandler(handleGsError).withSuccessHandler(master => {
+    runAuthed('getInitialData', master => {
       load(false);
       const select = document.getElementById('chart-item-select');
       select.innerHTML = (master.masterAll || []).map(it => `<option value="${it.name}">${it.name}</option>`).join('');
       renderCalendar();
       drawTrendChart();
-    }).getInitialData();
-  }).getCalendarData();
+    });
+  });
 }
 
 function renderCalendar() {
@@ -161,11 +161,11 @@ function executeAddPlan(ds) {
   if (!title) return;
   closeModal();
   load(true);
-  google.script.run.withFailureHandler(handleGsError).withSuccessHandler(() => {
+  runAuthed('addCalendarEvent', () => {
     load(false);
     toast('予定を保存しました');
     refreshCalendar();
-  }).addCalendarEvent({ date: ds, title: title });
+  }, { date: ds, title: title });
 }
 
 function drawTrendChart() {

@@ -3,7 +3,8 @@
 // 【機能】予定（専用シート）と実績（履歴シート）の独立管理
 //==========================================
 
-function getCalendarData() {
+function getCalendarData(sessionToken) {
+  requireSession_(sessionToken);
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const data = { events: {} };
 
@@ -30,7 +31,8 @@ function getCalendarData() {
   return data;
 }
 
-function addCalendarEvent(data) {
+function addCalendarEvent(data, sessionToken) {
+  requireSession_(sessionToken);
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let planSheet = ss.getSheetByName("🗓️｜予定");
   if (!planSheet) {

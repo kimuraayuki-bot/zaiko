@@ -14,7 +14,13 @@ function onOpen() {
 }
 
 function openInventoryApp() {
-  const html = HtmlService.createTemplateFromFile('Index').evaluate()
+  const userEmail =
+    String(Session.getActiveUser().getEmail() || Session.getEffectiveUser().getEmail() || '').toLowerCase();
+  if (!userEmail || !isAllowedEmail_(userEmail)) {
+    throw new Error('このアカウントには在庫管理アプリを開く権限がありません');
+  }
+
+  const html = buildAppHtml_(createSession_(userEmail).token)
     .setWidth(450)
     .setHeight(750)
     .setTitle('Cafe Inventory Smart');
@@ -46,7 +52,7 @@ function runMonthlyRollover() {
     newSS.getSheets()[0].getRange(1, 1, logData.length, logData[0].length).setValues(logData);
   }
 
-  const initial = getInitialData();
+  const initial = getInitialDataInternal_();
   logSheet.clearContents();
   logSheet.appendRow(['日付', 'カテゴリ', '名称', '区分', '変動量', '単位', '備考', '最新在庫']);
 
